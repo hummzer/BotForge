@@ -2,8 +2,8 @@
 
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { LineChart, BarChart, PieChart, Lightbulb, Sparkles } from "lucide-react"
-import { ResponsiveContainer, Line, XAxis, YAxis, CartesianGrid, Legend, Pie, Cell, Bar } from "recharts"
+import { Lightbulb, Sparkles } from "lucide-react"
+import { ResponsiveContainer, LineChart as RechartsLineChart, BarChart as RechartsBarChart, PieChart, Line, XAxis, YAxis, CartesianGrid, Legend, Pie, Cell, Bar } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { useToast } from "@/hooks/use-toast"
 
@@ -106,13 +106,13 @@ export default function BacktestReportPage() {
                 className="h-[250px]"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={equityData}>
+                  <RechartsLineChart data={equityData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
                     <XAxis dataKey="name" stroke="hsl(var(--spotify-text-secondary))" />
                     <YAxis stroke="hsl(var(--spotify-text-secondary))" />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Line type="monotone" dataKey="equity" stroke="var(--color-equity)" strokeWidth={2} dot={false} />
-                  </LineChart>
+                  </RechartsLineChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </CardContent>
@@ -184,13 +184,13 @@ export default function BacktestReportPage() {
                 className="h-[250px]"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={profitPerTradeData}>
+                  <RechartsBarChart data={profitPerTradeData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
                     <XAxis dataKey="range" stroke="hsl(var(--spotify-text-secondary))" />
                     <YAxis stroke="hsl(var(--spotify-text-secondary))" />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Bar dataKey="count" fill="var(--color-count)" />
-                  </BarChart>
+                  </RechartsBarChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </CardContent>
@@ -246,7 +246,7 @@ export default function BacktestReportPage() {
                 className="h-[250px]"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dailyPerformance}>
+                  <RechartsBarChart data={dailyPerformance}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
                     <XAxis dataKey="day" stroke="hsl(var(--spotify-text-secondary))" />
                     <YAxis stroke="hsl(var(--spotify-text-secondary))" />
@@ -254,7 +254,7 @@ export default function BacktestReportPage() {
                     <Legend />
                     <Bar dataKey="wins" fill="var(--color-wins)" name="Wins" />
                     <Bar dataKey="losses" fill="var(--color-losses)" name="Losses" />
-                  </BarChart>
+                  </RechartsBarChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </CardContent>
@@ -277,7 +277,7 @@ export default function BacktestReportPage() {
                 className="h-[250px]"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={hourlyPerformance}>
+                  <RechartsBarChart data={hourlyPerformance}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
                     <XAxis dataKey="hour" stroke="hsl(var(--spotify-text-secondary))" />
                     <YAxis stroke="hsl(var(--spotify-text-secondary))" />
@@ -285,7 +285,7 @@ export default function BacktestReportPage() {
                     <Legend />
                     <Bar dataKey="wins" fill="var(--color-wins)" name="Wins" />
                     <Bar dataKey="losses" fill="var(--color-losses)" name="Losses" />
-                  </BarChart>
+                  </RechartsBarChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </CardContent>
@@ -312,13 +312,13 @@ export default function BacktestReportPage() {
                 className="h-[250px]"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={marketSessions}>
+                  <RechartsBarChart data={marketSessions}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
                     <XAxis dataKey="session" stroke="hsl(var(--spotify-text-secondary))" />
                     <YAxis stroke="hsl(var(--spotify-text-secondary))" />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Bar dataKey="profit" fill="var(--color-profit)" />
-                  </BarChart>
+                  </RechartsBarChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </CardContent>
