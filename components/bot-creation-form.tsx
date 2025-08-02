@@ -12,10 +12,20 @@ import { ArrowLeft, ArrowRight, CheckCircle, Download, Code, Loader2, X, Sparkle
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { InteractiveChartPlaceholder } from "@/components/interactive-chart-placeholder" // Updated import path
+import { ResponsiveContainer, ComposedChart, XAxis, YAxis, Line, CartesianGrid, Tooltip } from "recharts"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Badge } from "@/components/ui/badge"
+// Mock CodeHighlighter (replace with react-syntax-highlighter if used)
+const CodeHighlighter = ({ language, value, onChange, className, ...props }) => (
+  <Textarea
+    className={className}
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    {...props}
+  />
+);
 
-// Loading Overlay Component
+
 function LoadingOverlay() {
   return (
     <div className="loading-overlay">
@@ -26,615 +36,2807 @@ function LoadingOverlay() {
 
 export function BotCreationForm() {
   const { toast } = useToast()
+  const router = useRouter()
   const [step, setStep] = useState(1)
   const [botName, setBotName] = useState("")
   const [botLanguage, setBotLanguage] = useState("Python")
   const [botDescription, setBotDescription] = useState("")
   const [botCode, setBotCode] = useState("")
   const [selectedTemplate, setSelectedTemplate] = useState("default")
-  const [selectedIndicators, setSelectedIndicators] = useState<string[]>([]) // New state for indicators
-  const [isCodeModalOpen, setIsCodeModalOpen] = useState(false)
-  const [compilationLog, setCompilationLog] = useState("")
-  const [compilationStatus, setCompilationStatus] = useState<"idle" | "compiling" | "success" | "error">("idle")
-  const [naturalLanguagePrompt, setNaturalLanguagePrompt] = useState("")
-  const [isGeneratingCode, setIsGeneratingCode] = useState(false)
-
-  const router = useRouter()
+  const [selectedIndicators, setSelectedIndicators] = useState<string[]>([])
+  const [timeframe, setTimeframe] = useState("H1")
+  const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
+  const [error, setError] = useState({ botName: "", botDescription: "" });
+  // const [compilationLog, setCompilationLog] = useState("")
+  // const [compilationStatus, setCompilationStatus] = useState<"idle" | "compiling" | "success" | "error">("idle")
+  // const [naturalLanguagePrompt, setNaturalLanguagePrompt] = useState("")
+  // const [isGeneratingCode, setIsGeneratingCode] = useState(false)
 
   const totalSteps = 3
   const progress = (step / totalSteps) * 100
+// Define the type for defaultCodeTemplates
+interface CodeTemplates {
+  [language: string]: {
+    [template: string]: string;
+  };
+}
+
+  // Mock candlestick data for EUR/USD
+  const marketData = [
+    { time: "2025-08-01 00:00", open: 1.2000, high: 1.2020, low: 1.1980, close: 1.2010 },
+    { time: "2025-08-01 01:00", open: 1.2010, high: 1.2035, low: 1.1995, close: 1.2025 },
+    { time: "2025-08-01 02:00", open: 1.2025, high: 1.2040, low: 1.2000, close: 1.2005 },
+    { time: "2025-08-01 03:00", open: 1.2005, high: 1.2025, low: 1.1990, close: 1.2015 },
+    { time: "2025-08-01 04:00", open: 1.2015, high: 1.2030, low: 1.2000, close: 1.2020 },
+  ]
 
   const defaultCodeTemplates = {
     Python: {
-      default: `def trading_strategy(data):\n    # Your Python trading logic here\n    # This bot follows trends using a default 50 Moving Average (assumed for backtesting).\n    # Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n    # Example: Buy if price increases, sell if decreases\n    if data.get('price', 0) > data.get('prev_price', 0):\n        return 'BUY'\n    elif data.get('price', 0) < data.get('prev_price', 0):\n        return 'SELL'\n    return 'HOLD'\n`,
-      "Trailing Stop Loss": `def trading_strategy(data, current_position, entry_price, high_price_since_entry):\n    # Implement a trailing stop loss strategy\n    # Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n    # Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n\n    # ... (code for trailing stop loss, volume check, etc.)\n    return 'HOLD'\n`,
-      "Risk Management (SL/TP)": `def trading_strategy(data, current_position, entry_price):\n    # Implement fixed Stop Loss (SL) and Take Profit (TP) levels\n    # Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n    # Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n\n    # ... (code for SL/TP, volume check, etc.)\n    return 'HOLD'\n`,
-      "RSI Crossover (Mandatory)": `def trading_strategy(data, rsi_period=14, overbought=70, oversold=30):\n    # MANDATORY STRATEGY: RSI Crossover\n    # Also includes mandatory Risk-to-Reward, Money Management, and Volume check.\n    # Default 50 Moving Average logic assumed for backtesting.\n\n    # ... (RSI calculation and crossover logic)\n    # ... (Risk management and volume check logic)\n    return 'HOLD'\n`,
-      "MACD Divergence (Optional)": `def trading_strategy(data):\n    # OPTIONAL STRATEGY: MACD Divergence\n    # Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n    # Default 50 Moving Average logic assumed for backtesting.\n\n    # ... (MACD calculation and divergence logic)\n    # ... (Risk management and volume check logic)\n    return 'HOLD'\n`,
+      default: `def trading_strategy(data):
+    """
+    Default trading strategy based on MQL5 standards.
+    - Uses 50-period SMA for trend confirmation.
+    - Implements 1:2 risk-to-reward with SL/TP.
+    - Includes volume check for trade entry.
+    - Risks 1% of account equity per trade.
+    """
+    # Input parameters
+    sma_period = 50
+    risk_percent = 0.01  # 1% risk per trade
+    rr_ratio = 2.0      # 1:2 risk-to-reward
+    min_volume = 10.0   # Minimum volume (lots)
+
+    # Extract data
+    price = data.get('close', 0.0)
+    account_balance = data.get('account_balance', 10000.0)
+    volume = data.get('volume', 0.0)
+    sma = data.get('sma_50', 0.0)
+
+    # Volume check
+    if volume < min_volume:
+        return 'HOLD', None
+
+    # Calculate position size (1% risk)
+    stop_loss_pips = 20
+    pip_value = 10.0
+    risk_amount = account_balance * risk_percent
+    lot_size = risk_amount / (stop_loss_pips * pip_value)
+
+    # Trading logic: Buy above SMA, Sell below SMA
+    if price > sma:
+        sl = price - stop_loss_pips * 0.0001
+        tp = price + (stop_loss_pips * rr_ratio) * 0.0001
+        return 'BUY', {'lot_size': lot_size, 'sl': sl, 'tp': tp}
+    elif price < sma:
+        sl = price + stop_loss_pips * 0.0001
+        tp = price - (stop_loss_pips * rr_ratio) * 0.0001
+        return 'SELL', {'lot_size': lot_size, 'sl': sl, 'tp': tp}
+    return 'HOLD', None
+`,
+      "Trailing Stop Loss": `def trading_strategy(data, current_position, entry_price, high_price_since_entry):
+    """
+    Trailing Stop Loss strategy based on MQL5 standards.
+    - Uses 50-period SMA for trend confirmation.
+    - Implements trailing stop with 1:2 risk-to-reward.
+    - Includes volume check for trade entry.
+    - Risks 1% of account equity per trade.
+    """
+    # Input parameters
+    sma_period = 50
+    risk_percent = 0.01
+    trail_pips = 15
+    rr_ratio = 2.0
+    min_volume = 10.0
+
+    # Extract data
+    price = data.get('close', 0.0)
+    account_balance = data.get('account_balance', 10000.0)
+    volume = data.get('volume', 0.0)
+    sma = data.get('sma_50', 0.0)
+
+    # Volume check
+    if volume < min_volume:
+        return 'HOLD', None
+
+    # Calculate position size
+    stop_loss_pips = 20
+    pip_value = 10.0
+    risk_amount = account_balance * risk_percent
+    lot_size = risk_amount / (stop_loss_pips * pip_value)
+
+    # Trailing stop logic
+    if current_position == 'BUY' and price > high_price_since_entry:
+        new_sl = price - trail_pips * 0.0001
+        return 'UPDATE_SL', {'sl': new_sl}
+    elif current_position == 'SELL' and price < high_price_since_entry:
+        new_sl = price + trail_pips * 0.0001
+        return 'UPDATE_SL', {'sl': new_sl}
+
+    # Entry logic
+    if price > sma and current_position is None:
+        sl = price - stop_loss_pips * 0.0001
+        tp = price + (stop_loss_pips * rr_ratio) * 0.0001
+        return 'BUY', {'lot_size': lot_size, 'sl': sl, 'tp': tp}
+    elif price < sma and current_position is None:
+        sl = price + stop_loss_pips * 0.0001
+        tp = price - (stop_loss_pips * rr_ratio) * 0.0001
+        return 'SELL', {'lot_size': lot_size, 'sl': sl, 'tp': tp}
+    return 'HOLD', None
+`,
+      "Risk Management (SL/TP)": `def trading_strategy(data):
+    """
+    Fixed SL/TP strategy based on MQL5 standards.
+    - Uses 50-period SMA for trend confirmation.
+    - Implements fixed 20-pip SL and 40-pip TP (1:2 RTR).
+    - Includes volume check for trade entry.
+    - Risks 1% of account equity per trade.
+    """
+    # Input parameters
+    sma_period = 50
+    risk_percent = 0.01
+    stop_loss_pips = 20
+    rr_ratio = 2.0
+    min_volume = 10.0
+
+    # Extract data
+    price = data.get('close', 0.0)
+    account_balance = data.get('account_balance', 10000.0)
+    volume = data.get('volume', 0.0)
+    sma = data.get('sma_50', 0.0)
+
+    # Volume check
+    if volume < min_volume:
+        return 'HOLD', None
+
+    # Calculate position size
+    pip_value = 10.0
+    risk_amount = account_balance * risk_percent
+    lot_size = risk_amount / (stop_loss_pips * pip_value)
+
+    # Trading logic
+    if price > sma:
+        sl = price - stop_loss_pips * 0.0001
+        tp = price + (stop_loss_pips * rr_ratio) * 0.0001
+        return 'BUY', {'lot_size': lot_size, 'sl': sl, 'tp': tp}
+    elif price < sma:
+        sl = price + stop_loss_pips * 0.0001
+        tp = price - (stop_loss_pips * rr_ratio) * 0.0001
+        return 'SELL', {'lot_size': lot_size, 'sl': sl, 'tp': tp}
+    return 'HOLD', None
+`,
+      "RSI Crossover (Mandatory)": `def trading_strategy(data):
+    """
+    RSI Crossover strategy based on MQL5 standards (Mandatory).
+    - Uses RSI (14) with overbought (70) and oversold (30) levels.
+    - Confirms trend with 50-period SMA.
+    - Implements 1:2 risk-to-reward with SL/TP.
+    - Includes volume check for trade entry.
+    - Risks 1% of account equity per trade.
+    """
+    # Input parameters
+    rsi_period = 14
+    overbought = 70
+    oversold = 30
+    sma_period = 50
+    risk_percent = 0.01
+    stop_loss_pips = 20
+    rr_ratio = 2.0
+    min_volume = 10.0
+
+    # Extract data
+    price = data.get('close', 0.0)
+    rsi = data.get('rsi', 0.0)
+    account_balance = data.get('account_balance', 10000.0)
+    volume = data.get('volume', 0.0)
+    sma = data.get('sma_50', 0.0)
+
+    # Volume check
+    if volume < min_volume:
+        return 'HOLD', None
+
+    # Calculate position size
+    pip_value = 10.0
+    risk_amount = account_balance * risk_percent
+    lot_size = risk_amount / (stop_loss_pips * pip_value)
+
+    # RSI crossover logic with SMA confirmation
+    if rsi < oversold and price > sma:
+        sl = price - stop_loss_pips * 0.0001
+        tp = price + (stop_loss_pips * rr_ratio) * 0.0001
+        return 'BUY', {'lot_size': lot_size, 'sl': sl, 'tp': tp}
+    elif rsi > overbought and price < sma:
+        sl = price + stop_loss_pips * 0.0001
+        tp = price - (stop_loss_pips * rr_ratio) * 0.0001
+        return 'SELL', {'lot_size': lot_size, 'sl': sl, 'tp': tp}
+    return 'HOLD', None
+`,
+      "MACD Divergence (Optional)": `def trading_strategy(data):
+    """
+    MACD Divergence strategy based on MQL5 standards (Optional).
+    - Uses MACD (12,26,9) for divergence detection.
+    - Confirms trend with 50-period SMA.
+    - Implements 1:2 risk-to-reward with SL/TP.
+    - Includes volume check for trade entry.
+    - Risks 1% of account equity per trade.
+    """
+    # Input parameters
+    fast_ema = 12
+    slow_ema = 26
+    signal = 9
+    sma_period = 50
+    risk_percent = 0.01
+    stop_loss_pips = 20
+    rr_ratio = 2.0
+    min_volume = 10.0
+
+    # Extract data
+    price = data.get('close', 0.0)
+    macd = data.get('macd', 0.0)
+    signal_line = data.get('signal_line', 0.0)
+    account_balance = data.get('account_balance', 10000.0)
+    volume = data.get('volume', 0.0)
+    sma = data.get('sma_50', 0.0)
+
+    # Volume check
+    if volume < min_volume:
+        return 'HOLD', None
+
+    # Calculate position size
+    pip_value = 10.0
+    risk_amount = account_balance * risk_percent
+    lot_size = risk_amount / (stop_loss_pips * pip_value)
+
+    # MACD divergence logic with SMA confirmation
+    if macd > signal_line and price > sma:
+        sl = price - stop_loss_pips * 0.0001
+        tp = price + (stop_loss_pips * rr_ratio) * 0.0001
+        return 'BUY', {'lot_size': lot_size, 'sl': sl, 'tp': tp}
+    elif macd < signal_line and price < sma:
+        sl = price + stop_loss_pips * 0.0001
+        tp = price - (stop_loss_pips * rr_ratio) * 0.0001
+        return 'SELL', {'lot_size': lot_size, 'sl': sl, 'tp': tp}
+    return 'HOLD', None
+`,
     },
     JavaScript: {
-      default: `function tradingStrategy(data) {\n  // Your JavaScript trading logic here\n  // This bot follows trends using a default 50 Moving Average (assumed for backtesting).\n  // Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n  // Example: Buy if price increases, sell if decreases\n  if (data.price > data.prev_price) {\n    return 'BUY';\n  } else if (data.price < data.prev_price) {\n    return 'SELL';\n  }\n  return 'HOLD';\n}\n`,
-      "Trailing Stop Loss": `function tradingStrategy(data, currentPosition, entryPrice, highPriceSinceEntry) {\n  // Implement a trailing stop loss strategy\n  // Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n  // Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n\n  // ... (code for trailing stop loss, volume check, etc.)\n  return 'HOLD';\n}\n`,
-      "Risk Management (SL/TP)": `function tradingStrategy(data, currentPosition, entryPrice) {\n  // Implement fixed Stop Loss (SL) and Take Profit (TP) levels\n  // Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n  // Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n\n  // ... (code for SL/TP, volume check, etc.)\n  return 'HOLD';\n}\n`,
-      "RSI Crossover (Mandatory)": `function tradingStrategy(data, rsiPeriod = 14, overbought = 70, oversold = 30) {\n  // MANDATORY STRATEGY: RSI Crossover\n  // Also includes mandatory Risk-to-Reward, Money Management, and Volume check.\n  // Default 50 Moving Average logic assumed for backtesting.\n\n  // ... (RSI calculation and crossover logic)\n  // ... (Risk management and volume check logic)\n  return 'HOLD';\n}\n`,
-      "MACD Divergence (Optional)": `function tradingStrategy(data) {\n  // OPTIONAL STRATEGY: MACD Divergence\n  // Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n  // Default 50 Moving Average logic assumed for backtesting.\n\n  // ... (MACD calculation and divergence logic)\n  // ... (Risk management and volume check logic)\n  return 'HOLD';\n}\n`,
+      default: `function tradingStrategy(data) {
+  /*
+   * Default trading strategy based on MQL5 standards.
+   * - Uses 50-period SMA for trend confirmation.
+   * - Implements 1:2 risk-to-reward with SL/TP.
+   * - Includes volume check for trade entry.
+   * - Risks 1% of account equity per trade.
+   */
+  // Input parameters
+  const smaPeriod = 50;
+  const riskPercent = 0.01;
+  const rrRatio = 2.0;
+  const minVolume = 10.0;
+
+  // Extract data
+  const price = data.close || 0.0;
+  const accountBalance = data.account_balance || 10000.0;
+  const volume = data.volume || 0.0;
+  const sma = data.sma_50 || 0.0;
+
+  // Volume check
+  if (volume < minVolume) {
+    return { action: 'HOLD', params: null };
+  }
+
+  // Calculate position size
+  const stopLossPips = 20;
+  const pipValue = 10.0;
+  const riskAmount = accountBalance * riskPercent;
+  const lotSize = riskAmount / (stopLossPips * pipValue);
+
+  // Trading logic
+  if (price > sma) {
+    const sl = price - stopLossPips * 0.0001;
+    const tp = price + (stopLossPips * rrRatio) * 0.0001;
+    return { action: 'BUY', params: { lotSize, sl, tp } };
+  } else if (price < sma) {
+    const sl = price + stopLossPips * 0.0001;
+    const tp = price - (stopLossPips * rrRatio) * 0.0001;
+    return { action: 'SELL', params: { lotSize, sl, tp } };
+  }
+  return { action: 'HOLD', params: null };
+}
+`,
+      "Trailing Stop Loss": `function tradingStrategy(data, currentPosition, entryPrice, highPriceSinceEntry) {
+  /*
+   * Trailing Stop Loss strategy based on MQL5 standards.
+   * - Uses 50-period SMA for trend confirmation.
+   * - Implements trailing stop with 1:2 risk-to-reward.
+   * - Includes volume check for trade entry.
+   * - Risks 1% of account equity per trade.
+   */
+  // Input parameters
+  const smaPeriod = 50;
+  const riskPercent = 0.01;
+  const trailPips = 15;
+  const rrRatio = 2.0;
+  const minVolume = 10.0;
+
+  // Extract data
+  const price = data.close || 0.0;
+  const accountBalance = data.account_balance || 10000.0;
+  const volume = data.volume || 0.0;
+  const sma = data.sma_50 || 0.0;
+
+  // Volume check
+  if (volume < minVolume) {
+    return { action: 'HOLD', params: null };
+  }
+
+  // Calculate position size
+  const stopLossPips = 20;
+  const pipValue = 10.0;
+  const riskAmount = accountBalance * riskPercent;
+  const lotSize = riskAmount / (stopLossPips * pipValue);
+
+  // Trailing stop logic
+  if (currentPosition === 'BUY' && price > highPriceSinceEntry) {
+    const newSl = price - trailPips * 0.0001;
+    return { action: 'UPDATE_SL', params: { sl: newSl } };
+  } else if (currentPosition === 'SELL' && price < highPriceSinceEntry) {
+    const newSl = price + trailPips * 0.0001;
+    return { action: 'UPDATE_SL', params: { sl: newSl } };
+  }
+
+  // Entry logic
+  if (price > sma && !currentPosition) {
+    const sl = price - stopLossPips * 0.0001;
+    const tp = price + (stopLossPips * rrRatio) * 0.0001;
+    return { action: 'BUY', params: { lotSize, sl, tp } };
+  } else if (price < sma && !currentPosition) {
+    const sl = price + stopLossPips * 0.0001;
+    const tp = price - (stopLossPips * rrRatio) * 0.0001;
+    return { action: 'SELL', params: { lotSize, sl, tp } };
+  }
+  return { action: 'HOLD', params: null };
+}
+`,
+      "Risk Management (SL/TP)": `function tradingStrategy(data) {
+  /*
+   * Fixed SL/TP strategy based on MQL5 standards.
+   * - Uses 50-period SMA for trend confirmation.
+   * - Implements fixed 20-pip SL and 40-pip TP (1:2 RTR).
+   * - Includes volume check for trade entry.
+   * - Risks 1% of account equity per trade.
+   */
+  // Input parameters
+  const smaPeriod = 50;
+  const riskPercent = 0.01;
+  const stopLossPips = 20;
+  const rrRatio = 2.0;
+  const minVolume = 10.0;
+
+  // Extract data
+  const price = data.close || 0.0;
+  const accountBalance = data.account_balance || 10000.0;
+  const volume = data.volume || 0.0;
+  const sma = data.sma_50 || 0.0;
+
+  // Volume check
+  if (volume < minVolume) {
+    return { action: 'HOLD', params: null };
+  }
+
+  // Calculate position size
+  const pipValue = 10.0;
+  const riskAmount = accountBalance * riskPercent;
+  const lotSize = riskAmount / (stopLossPips * pipValue);
+
+  // Trading logic
+  if (price > sma) {
+    const sl = price - stopLossPips * 0.0001;
+    const tp = price + (stopLossPips * rrRatio) * 0.0001;
+    return { action: 'BUY', params: { lotSize, sl, tp } };
+  } else if (price < sma) {
+    const sl = price + stopLossPips * 0.0001;
+    const tp = price - (stopLossPips * rrRatio) * 0.0001;
+    return { action: 'SELL', params: { lotSize, sl, tp } };
+  }
+  return { action: 'HOLD', params: null };
+}
+`,
+      "RSI Crossover (Mandatory)": `function tradingStrategy(data) {
+  /*
+   * RSI Crossover strategy based on MQL5 standards (Mandatory).
+   * - Uses RSI (14) with overbought (70) and oversold (30) levels.
+   * - Confirms trend with 50-period SMA.
+   * - Implements 1:2 risk-to-reward with SL/TP.
+   * - Includes volume check for trade entry.
+   * - Risks 1% of account equity per trade.
+   */
+  // Input parameters
+  const rsiPeriod = 14;
+  const overbought = 70;
+  const oversold = 30;
+  const smaPeriod = 50;
+  const riskPercent = 0.01;
+  const stopLossPips = 20;
+  const rrRatio = 2.0;
+  const minVolume = 10.0;
+
+  // Extract data
+  const price = data.close || 0.0;
+  const rsi = data.rsi || 0.0;
+  const accountBalance = data.account_balance || 10000.0;
+  const volume = data.volume || 0.0;
+  const sma = data.sma_50 || 0.0;
+
+  // Volume check
+  if (volume < minVolume) {
+    return { action: 'HOLD', params: null };
+  }
+
+  // Calculate position size
+  const pipValue = 10.0;
+  const riskAmount = accountBalance * riskPercent;
+  const lotSize = riskAmount / (stopLossPips * pipValue);
+
+  // RSI crossover logic with SMA confirmation
+  if (rsi < oversold && price > sma) {
+    const sl = price - stopLossPips * 0.0001;
+    const tp = price + (stopLossPips * rrRatio) * 0.0001;
+    return { action: 'BUY', params: { lotSize, sl, tp } };
+  } else if (rsi > overbought && price < sma) {
+    const sl = price + stopLossPips * 0.0001;
+    const tp = price - (stopLossPips * rrRatio) * 0.0001;
+    return { action: 'SELL', params: { lotSize, sl, tp } };
+  }
+  return { action: 'HOLD', params: null };
+}
+`,
+      "MACD Divergence (Optional)": `function tradingStrategy(data) {
+  /*
+   * MACD Divergence strategy based on MQL5 standards (Optional).
+   * - Uses MACD (12,26,9) for divergence detection.
+   * - Confirms trend with 50-period SMA.
+   * - Implements 1:2 risk-to-reward with SL/TP.
+   * - Includes volume check for trade entry.
+   * - Risks 1% of account equity per trade.
+   */
+  // Input parameters
+  const fastEma = 12;
+  const slowEma = 26;
+  const signal = 9;
+  const smaPeriod = 50;
+  const riskPercent = 0.01;
+  const stopLossPips = 20;
+  const rrRatio = 2.0;
+  const minVolume = 10.0;
+
+  // Extract data
+  const price = data.close || 0.0;
+  const macd = data.macd || 0.0;
+  const signalLine = data.signal_line || 0.0;
+  const accountBalance = data.account_balance || 10000.0;
+  const volume = data.volume || 0.0;
+  const sma = data.sma_50 || 0.0;
+
+  // Volume check
+  if (volume < minVolume) {
+    return { action: 'HOLD', params: null };
+  }
+
+  // Calculate position size
+  const pipValue = 10.0;
+  const riskAmount = accountBalance * riskPercent;
+  const lotSize = riskAmount / (stopLossPips * pipValue);
+
+  // MACD divergence logic with SMA confirmation
+  if (macd > signalLine && price > sma) {
+    const sl = price - stopLossPips * 0.0001;
+    const tp = price + (stopLossPips * rrRatio) * 0.0001;
+    return { action: 'BUY', params: { lotSize, sl, tp } };
+  } else if (macd < signalLine && price < sma) {
+    const sl = price + stopLossPips * 0.0001;
+    const tp = price - (stopLossPips * rrRatio) * 0.0001;
+    return { action: 'SELL', params: { lotSize, sl, tp } };
+  }
+  return { action: 'HOLD', params: null };
+}
+`,
     },
     "C++": {
-      default: `#include <iostream>\n#include <string>\n\n// Your C++ trading logic here\n// This bot follows trends using a default 50 Moving Average (assumed for backtesting).\n// Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n// Example: Buy if price increases, sell if decreases\nstd::string tradingStrategy(double price, double prev_price) {\n    if (price > prev_price) {\n        return "BUY";\n    } else if (price < prev_price) {\n        return "SELL";\n    }\n    return "HOLD";\n}\n\n// ... (main function and other C++ specific setups)\n`,
-      "Trailing Stop Loss": `#include <iostream>\n#include <string>\n\n// Implement a trailing stop loss strategy\n// Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n// Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n\n// ... (code for trailing stop loss, volume check, etc.)\nstd::string tradingStrategy(...) { return "HOLD"; }\n`,
-      "Risk Management (SL/TP)": `#include <iostream>\n#include <string>\n\n// Implement fixed Stop Loss (SL) and Take Profit (TP) levels\n// Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n// Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n\n// ... (code for SL/TP, volume check, etc.)\nstd::string tradingStrategy(...) { return "HOLD"; }\n`,
-      "RSI Crossover (Mandatory)": `#include <iostream>\n#include <string>\n\n// MANDATORY STRATEGY: RSI Crossover\n// Also includes mandatory Risk-to-Reward, Money Management, and Volume check.\n// Default 50 Moving Average logic assumed for backtesting.\n\n// ... (RSI calculation and crossover logic)\n// ... (Risk management and volume check logic)\nstd::string tradingStrategy(...) { return "HOLD"; }\n`,
-      "MACD Divergence (Optional)": `#include <iostream>\n#include <string>\n\n// OPTIONAL STRATEGY: MACD Divergence\n// Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n// Default 50 Moving Average logic assumed for backtesting.\n\n// ... (MACD calculation and divergence logic)\n// ... (Risk management and volume check logic)\nstd::string tradingStrategy(...) { return "HOLD"; }\n`,
+      default: `#include <string>
+#include <map>
+
+std::string tradingStrategy(std::map<std::string, double> data) {
+    /*
+     * Default trading strategy based on MQL5 standards.
+     * - Uses 50-period SMA for trend confirmation.
+     * - Implements 1:2 risk-to-reward with SL/TP.
+     * - Includes volume check for trade entry.
+     * - Risks 1% of account equity per trade.
+     */
+    // Input parameters
+    const int sma_period = 50;
+    const double risk_percent = 0.01;
+    const double rr_ratio = 2.0;
+    const double min_volume = 10.0;
+
+    // Extract data
+    double price = data["close"];
+    double account_balance = data["account_balance"];
+    double volume = data["volume"];
+    double sma = data["sma_50"];
+
+    // Volume check
+    if (volume < min_volume) {
+        return "HOLD";
+    }
+
+    // Calculate position size
+    const double stop_loss_pips = 20;
+    const double pip_value = 10.0;
+    double risk_amount = account_balance * risk_percent;
+    double lot_size = risk_amount / (stop_loss_pips * pip_value);
+
+    // Trading logic
+    if (price > sma) {
+        double sl = price - stop_loss_pips * 0.0001;
+        double tp = price + (stop_loss_pips * rr_ratio) * 0.0001;
+        return "BUY";
+    } else if (price < sma) {
+        double sl = price + stop_loss_pips * 0.0001;
+        double tp = price - (stop_loss_pips * rr_ratio) * 0.0001;
+        return "SELL";
+    }
+    return "HOLD";
+}
+`,
+      "Trailing Stop Loss": `#include <string>
+#include <map>
+
+std::string tradingStrategy(std::map<std::string, double> data, std::string current_position, double entry_price, double high_price_since_entry) {
+    /*
+     * Trailing Stop Loss strategy based on MQL5 standards.
+     * - Uses 50-period SMA for trend confirmation.
+     * - Implements trailing stop with 1:2 risk-to-reward.
+     * - Includes volume check for trade entry.
+     * - Risks 1% of account equity per trade.
+     */
+    // Input parameters
+    const int sma_period = 50;
+    const double risk_percent = 0.01;
+    const double trail_pips = 15;
+    const double rr_ratio = 2.0;
+    const double min_volume = 10.0;
+
+    // Extract data
+    double price = data["close"];
+    double account_balance = data["account_balance"];
+    double volume = data["volume"];
+    double sma = data["sma_50"];
+
+    // Volume check
+    if (volume < min_volume) {
+        return "HOLD";
+    }
+
+    // Calculate position size
+    const double stop_loss_pips = 20;
+    const double pip_value = 10.0;
+    double risk_amount = account_balance * risk_percent;
+    double lot_size = risk_amount / (stop_loss_pips * pip_value);
+
+    // Trailing stop logic
+    if (current_position == "BUY" && price > high_price_since_entry) {
+        double new_sl = price - trail_pips * 0.0001;
+        return "UPDATE_SL";
+    } else if (current_position == "SELL" && price < high_price_since_entry) {
+        double new_sl = price + trail_pips * 0.0001;
+        return "UPDATE_SL";
+    }
+
+    // Entry logic
+    if (price > sma && current_position.empty()) {
+        double sl = price - stop_loss_pips * 0.0001;
+        double tp = price + (stop_loss_pips * rr_ratio) * 0.0001;
+        return "BUY";
+    } else if (price < sma && current_position.empty()) {
+        double sl = price + stop_loss_pips * 0.0001;
+        double tp = price - (stop_loss_pips * rr_ratio) * 0.0001;
+        return "SELL";
+    }
+    return "HOLD";
+}
+`,
+      "Risk Management (SL/TP)": `#include <string>
+#include <map>
+
+std::string tradingStrategy(std::map<std::string, double> data) {
+    /*
+     * Fixed SL/TP strategy based on MQL5 standards.
+     * - Uses 50-period SMA for trend confirmation.
+     * - Implements fixed 20-pip SL and 40-pip TP (1:2 RTR).
+     * - Includes volume check for trade entry.
+     * - Risks 1% of account equity per trade.
+     */
+    // Input parameters
+    const int sma_period = 50;
+    const double risk_percent = 0.01;
+    const double stop_loss_pips = 20;
+    const double rr_ratio = 2.0;
+    const double min_volume = 10.0;
+
+    // Extract data
+    double price = data["close"];
+    double account_balance = data["account_balance"];
+    double volume = data["volume"];
+    double sma = data["sma_50"];
+
+    // Volume check
+    if (volume < min_volume) {
+        return "HOLD";
+    }
+
+    // Calculate position size
+    const double pip_value = 10.0;
+    double risk_amount = account_balance * risk_percent;
+    double lot_size = risk_amount / (stop_loss_pips * pip_value);
+
+    // Trading logic
+    if (price > sma) {
+        double sl = price - stop_loss_pips * 0.0001;
+        double tp = price + (stop_loss_pips * rr_ratio) * 0.0001;
+        return "BUY";
+    } else if (price < sma) {
+        double sl = price + stop_loss_pips * 0.0001;
+        double tp = price - (stop_loss_pips * rr_ratio) * 0.0001;
+        return "SELL";
+    }
+    return "HOLD";
+}
+`,
+      "RSI Crossover (Mandatory)": `#include <string>
+#include <map>
+
+std::string tradingStrategy(std::map<std::string, double> data) {
+    /*
+     * RSI Crossover strategy based on MQL5 standards (Mandatory).
+     * - Uses RSI (14) with overbought (70) and oversold (30) levels.
+     * - Confirms trend with 50-period SMA.
+     * - Implements 1:2 risk-to-reward with SL/TP.
+     * - Includes volume check for trade entry.
+     * - Risks 1% of account equity per trade.
+     */
+    // Input parameters
+    const int rsi_period = 14;
+    const double overbought = 70;
+    const double oversold = 30;
+    const int sma_period = 50;
+    const double risk_percent = 0.01;
+    const double stop_loss_pips = 20;
+    const double rr_ratio = 2.0;
+    const double min_volume = 10.0;
+
+    // Extract data
+    double price = data["close"];
+    double rsi = data["rsi"];
+    double account_balance = data["account_balance"];
+    double volume = data["volume"];
+    double sma = data["sma_50"];
+
+    // Volume check
+    if (volume < min_volume) {
+        return "HOLD";
+    }
+
+    // Calculate position size
+    const double pip_value = 10.0;
+    double risk_amount = account_balance * risk_percent;
+    double lot_size = risk_amount / (stop_loss_pips * pip_value);
+
+    // RSI crossover logic with SMA confirmation
+    if (rsi < oversold && price > sma) {
+        double sl = price - stop_loss_pips * 0.0001;
+        double tp = price + (stop_loss_pips * rr_ratio) * 0.0001;
+        return "BUY";
+    } else if (rsi > overbought && price < sma) {
+        double sl = price + stop_loss_pips * 0.0001;
+        double tp = price - (stop_loss_pips * rr_ratio) * 0.0001;
+        return "SELL";
+    }
+    return "HOLD";
+}
+`,
+      "MACD Divergence (Optional)": `#include <string>
+#include <map>
+
+std::string tradingStrategy(std::map<std::string, double> data) {
+    /*
+     * MACD Divergence strategy based on MQL5 standards (Optional).
+     * - Uses MACD (12,26,9) for divergence detection.
+     * - Confirms trend with 50-period SMA.
+     * - Implements 1:2 risk-to-reward with SL/TP.
+     * - Includes volume check for trade entry.
+     * - Risks 1% of account equity per trade.
+     */
+    // Input parameters
+    const int fast_ema = 12;
+    const int slow_ema = 26;
+    const int signal = 9;
+    const int sma_period = 50;
+    const double risk_percent = 0.01;
+    const double stop_loss_pips = 20;
+    const double rr_ratio = 2.0;
+    const double min_volume = 10.0;
+
+    // Extract data
+    double price = data["close"];
+    double macd = data["macd"];
+    double signal_line = data["signal_line"];
+    double account_balance = data["account_balance"];
+    double volume = data["volume"];
+    double sma = data["sma_50"];
+
+    // Volume check
+    if (volume < min_volume) {
+        return "HOLD";
+    }
+
+    // Calculate position size
+    const double pip_value = 10.0;
+    double risk_amount = account_balance * risk_percent;
+    double lot_size = risk_amount / (stop_loss_pips * pip_value);
+
+    // MACD divergence logic with SMA confirmation
+    if (macd > signal_line && price > sma) {
+        double sl = price - stop_loss_pips * 0.0001;
+        double tp = price + (stop_loss_pips * rr_ratio) * 0.0001;
+        return "BUY";
+    } else if (macd < signal_line && price < sma) {
+        double sl = price + stop_loss_pips * 0.0001;
+        double tp = price - (stop_loss_pips * rr_ratio) * 0.0001;
+        return "SELL";
+    }
+    return "HOLD";
+}
+`,
     },
     Rust: {
-      default: `fn trading_strategy(data: &std::collections::HashMap<String, f64>) -> String {\n    // Your Rust trading logic here\n    // This bot follows trends using a default 50 Moving Average (assumed for backtesting).\n    // Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n    // Example: Buy if price increases, sell if decreases\n    let price = data.get("price").copied().unwrap_or(0.0);\n    let prev_price = data.get("prev_price").copied().unwrap_or(0.0);\n\n    if price > prev_price {\n        "BUY".to_string()\n    } else if price < prev_price {\n        "SELL".to_string()\n    } else {\n        "HOLD".to_string()\n    }\n}\n\n// ... (main function and other Rust specific setups)\n`,
-      "Trailing Stop Loss": `fn trading_strategy(...) -> String {\n    // Implement a trailing stop loss strategy\n    // Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n    // Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n\n    // ... (code for trailing stop loss, volume check, etc.)\n    "HOLD".to_string()\n}\n`,
-      "Risk Management (SL/TP)": `fn trading_strategy(...) -> String {\n    // Implement fixed Stop Loss (SL) and Take Profit (TP) levels\n    // Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n    // Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n\n    // ... (code for SL/TP, volume check, etc.)\n    "HOLD".to_string()\n}\n`,
-      "RSI Crossover (Mandatory)": `fn trading_strategy(current_rsi: f64, overbought: f64, oversold: f64) -> String {\n    // MANDATORY STRATEGY: RSI Crossover\n    // Also includes mandatory Risk-to-Reward, Money Management, and Volume check.\n    // Default 50 Moving Average logic assumed for backtesting.\n\n    // ... (RSI calculation and crossover logic)\n    // ... (Risk management and volume check logic)\n    "HOLD".to_string()\n}\n`,
-      "MACD Divergence (Optional)": `fn trading_strategy(macd: f64, signal_line: f64, prev_macd: f64, prev_signal_line: f64) -> String {\n    // OPTIONAL STRATEGY: MACD Divergence\n    // Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n    // Default 50 Moving Average logic assumed for backtesting.\n\n    // ... (MACD calculation and divergence logic)\n    // ... (Risk management and volume check logic)\n    "HOLD".to_string()\n}\n`,
+      default: `use std::collections::HashMap;
+
+fn trading_strategy(data: &HashMap<String, f64>) -> (String, Option<HashMap<String, f64>>) {
+    /*
+     * Default trading strategy based on MQL5 standards.
+     * - Uses 50-period SMA for trend confirmation.
+     * - Implements 1:2 risk-to-reward with SL/TP.
+     * - Includes volume check for trade entry.
+     * - Risks 1% of account equity per trade.
+     */
+    // Input parameters
+    const SMA_PERIOD: i32 = 50;
+    const RISK_PERCENT: f64 = 0.01;
+    const RR_RATIO: f64 = 2.0;
+    const MIN_VOLUME: f64 = 10.0;
+
+    // Extract data
+    let price = data.get("close").copied().unwrap_or(0.0);
+    let account_balance = data.get("account_balance").copied().unwrap_or(10000.0);
+    let volume = data.get("volume").copied().unwrap_or(0.0);
+    let sma = data.get("sma_50").copied().unwrap_or(0.0);
+
+    // Volume check
+    if volume < MIN_VOLUME {
+        return ("HOLD".to_string(), None);
+    }
+
+    // Calculate position size
+    let stop_loss_pips = 20.0;
+    let pip_value = 10.0;
+    let risk_amount = account_balance * RISK_PERCENT;
+    let lot_size = risk_amount / (stop_loss_pips * pip_value);
+
+    // Trading logic
+    if price > sma {
+        let sl = price - stop_loss_pips * 0.0001;
+        let tp = price + (stop_loss_pips * RR_RATIO) * 0.0001;
+        let params = Some(HashMap::from([
+            ("lot_size".to_string(), lot_size),
+            ("sl".to_string(), sl),
+            ("tp".to_string(), tp),
+        ]));
+        return ("BUY".to_string(), params);
+    } else if price < sma {
+        let sl = price + stop_loss_pips * 0.0001;
+        let tp = price - (stop_loss_pips * RR_RATIO) * 0.0001;
+        let params = Some(HashMap::from([
+            ("lot_size".to_string(), lot_size),
+            ("sl".to_string(), sl),
+            ("tp".to_string(), tp),
+        ]));
+        return ("SELL".to_string(), params);
+    }
+    ("HOLD".to_string(), None)
+}
+`,
+      "Trailing Stop Loss": `use std::collections::HashMap;
+
+fn trading_strategy(data: &HashMap<String, f64>, current_position: Option<String>, entry_price: f64, high_price_since_entry: f64) -> (String, Option<HashMap<String, f64>>) {
+    /*
+     * Trailing Stop Loss strategy based on MQL5 standards.
+     * - Uses 50-period SMA for trend confirmation.
+     * - Implements trailing stop with 1:2 risk-to-reward.
+     * - Includes volume check for trade entry.
+     * - Risks 1% of account equity per trade.
+     */
+    // Input parameters
+    const SMA_PERIOD: i32 = 50;
+    const RISK_PERCENT: f64 = 0.01;
+    const TRAIL_PIPS: f64 = 15.0;
+    const RR_RATIO: f64 = 2.0;
+    const MIN_VOLUME: f64 = 10.0;
+
+    // Extract data
+    let price = data.get("close").copied().unwrap_or(0.0);
+    let account_balance = data.get("account_balance").copied().unwrap_or(10000.0);
+    let volume = data.get("volume").copied().unwrap_or(0.0);
+    let sma = data.get("sma_50").copied().unwrap_or(0.0);
+
+    // Volume check
+    if volume < MIN_VOLUME {
+        return ("HOLD".to_string(), None);
+    }
+
+    // Calculate position size
+    let stop_loss_pips = 20.0;
+    let pip_value = 10.0;
+    let risk_amount = account_balance * RISK_PERCENT;
+    let lot_size = risk_amount / (stop_loss_pips * pip_value);
+
+    // Trailing stop logic
+    if let Some(pos) = current_position {
+        if pos == "BUY" && price > high_price_since_entry {
+            let new_sl = price - TRAIL_PIPS * 0.0001;
+            let params = Some(HashMap::from([("sl".to_string(), new_sl)]));
+            return ("UPDATE_SL".to_string(), params);
+        } else if pos == "SELL" && price < high_price_since_entry {
+            let new_sl = price + TRAIL_PIPS * 0.0001;
+            let params = Some(HashMap::from([("sl".to_string(), new_sl)]));
+            return ("UPDATE_SL".to_string(), params);
+        }
+    }
+
+    // Entry logic
+    if price > sma && current_position.is_none() {
+        let sl = price - stop_loss_pips * 0.0001;
+        let tp = price + (stop_loss_pips * RR_RATIO) * 0.0001;
+        let params = Some(HashMap::from([
+            ("lot_size".to_string(), lot_size),
+            ("sl".to_string(), sl),
+            ("tp".to_string(), tp),
+        ]));
+        return ("BUY".to_string(), params);
+    } else if (price < sma && current_position.is_none()) {
+        let sl = price + stop_loss_pips * 0.0001;
+        let tp = price - (stop_loss_pips * RR_RATIO) * 0.0001;
+        let params = Some(HashMap::from([
+            ("lot_size".to_string(), lot_size),
+            ("sl".to_string(), sl),
+            ("tp".to_string(), tp),
+        ]));
+        return ("SELL".to_string(), params);
+    }
+    ("HOLD".to_string(), None)
+}
+`,
+      "Risk Management (SL/TP)": `use std::collections::HashMap;
+
+fn trading_strategy(data: &HashMap<String, f64>) -> (String, Option<HashMap<String, f64>>) {
+    /*
+     * Fixed SL/TP strategy based on MQL5 standards.
+     * - Uses 50-period SMA for trend confirmation.
+     * - Implements fixed 20-pip SL and 40-pip TP (1:2 RTR).
+     * - Includes volume check for trade entry.
+     * - Risks 1% of account equity per trade.
+     */
+    // Input parameters
+    const SMA_PERIOD: i32 = 50;
+    const RISK_PERCENT: f64 = 0.01;
+    const STOP_LOSS_PIPS: f64 = 20.0;
+    const RR_RATIO: f64 = 2.0;
+    const MIN_VOLUME: f64 = 10.0;
+
+    // Extract data
+    let price = data.get("close").copied().unwrap_or(0.0);
+    let account_balance = data.get("account_balance").copied().unwrap_or(10000.0);
+    let volume = data.get("volume").copied().unwrap_or(0.0);
+    let sma = data.get("sma_50").copied().unwrap_or(0.0);
+
+    // Volume check
+    if volume < MIN_VOLUME {
+        return ("HOLD".to_string(), None);
+    }
+
+    // Calculate position size
+    let pip_value = 10.0;
+    let risk_amount = account_balance * RISK_PERCENT;
+    let lot_size = risk_amount / (STOP_LOSS_PIPS * pip_value);
+
+    // Trading logic
+    if price > sma {
+        let sl = price - STOP_LOSS_PIPS * 0.0001;
+        let tp = price + (STOP_LOSS_PIPS * RR_RATIO) * 0.0001;
+        let params = Some(HashMap::from([
+            ("lot_size".to_string(), lot_size),
+            ("sl".to_string(), sl),
+            ("tp".to_string(), tp),
+        ]));
+        return ("BUY".to_string(), params);
+    } else if price < sma {
+        let sl = price + STOP_LOSS_PIPS * 0.0001;
+        let tp = price - (STOP_LOSS_PIPS * RR_RATIO) * 0.0001;
+        let params = Some(HashMap::from([
+            ("lot_size".to_string(), lot_size),
+            ("sl".to_string(), sl),
+            ("tp".to_string(), tp),
+        ]));
+        return ("SELL".to_string(), params);
+    }
+    ("HOLD".to_string(), None)
+}
+`,
+      "RSI Crossover (Mandatory)": `use std::collections::HashMap;
+
+fn trading_strategy(data: &HashMap<String, f64>) -> (String, Option<HashMap<String, f64>>) {
+    /*
+     * RSI Crossover strategy based on MQL5 standards (Mandatory).
+     * - Uses RSI (14) with overbought (70) and oversold (30) levels.
+     * - Confirms trend with 50-period SMA.
+     * - Implements 1:2 risk-to-reward with SL/TP.
+     * - Includes volume check for trade entry.
+     * - Risks 1% of account equity per trade.
+     */
+    // Input parameters
+    const RSI_PERIOD: i32 = 14;
+    const OVERBOUGHT: f64 = 70.0;
+    const OVERSOLD: f64 = 30.0;
+    const SMA_PERIOD: i32 = 50;
+    const RISK_PERCENT: f64 = 0.01;
+    const STOP_LOSS_PIPS: f64 = 20.0;
+    const RR_RATIO: f64 = 2.0;
+    const MIN_VOLUME: f64 = 10.0;
+
+    // Extract data
+    let price = data.get("close").copied().unwrap_or(0.0);
+    let rsi = data.get("rsi").copied().unwrap_or(0.0);
+    let account_balance = data.get("account_balance").copied().unwrap_or(10000.0);
+    let volume = data.get("volume").copied().unwrap_or(0.0);
+    let sma = data.get("sma_50").copied().unwrap_or(0.0);
+
+    // Volume check
+    if volume < MIN_VOLUME {
+        return ("HOLD".to_string(), None);
+    }
+
+    // Calculate position size
+    let pip_value = 10.0;
+    let risk_amount = account_balance * RISK_PERCENT;
+    let lot_size = risk_amount / (STOP_LOSS_PIPS * pip_value);
+
+    // RSI crossover logic with SMA confirmation
+    if rsi < OVERSOLD && price > sma {
+        let sl = price - STOP_LOSS_PIPS * 0.0001;
+        let tp = price + (STOP_LOSS_PIPS * RR_RATIO) * 0.0001;
+        let params = Some(HashMap::from([
+            ("lot_size".to_string(), lot_size),
+            ("sl".to_string(), sl),
+            ("tp".to_string(), tp),
+        ]));
+        return ("BUY".to_string(), params);
+    } else if rsi > OVERBOUGHT && price < sma {
+        let sl = price + STOP_LOSS_PIPS * 0.0001;
+        let tp = price - (STOP_LOSS_PIPS * RR_RATIO) * 0.0001;
+        let params = Some(HashMap::from([
+            ("lot_size".to_string(), lot_size),
+            ("sl".to_string(), sl),
+            ("tp".to_string(), tp),
+        ]));
+        return ("SELL".to_string(), params);
+    }
+    ("HOLD".to_string(), None)
+}
+`,
+      "MACD Divergence (Optional)": `use std::collections::HashMap;
+
+fn trading_strategy(data: &HashMap<String, f64>) -> (String, Option<HashMap<String, f64>>) {
+    /*
+     * MACD Divergence strategy based on MQL5 standards (Optional).
+     * - Uses MACD (12,26,9) for divergence detection.
+     * - Confirms trend with 50-period SMA.
+     * - Implements 1:2 risk-to-reward with SL/TP.
+     * - Includes volume check for trade entry.
+     * - Risks 1% of account equity per trade.
+     */
+    // Input parameters
+    const FAST_EMA: i32 = 12;
+    const SLOW_EMA: i32 = 26;
+    const SIGNAL: i32 = 9;
+    const SMA_PERIOD: i32 = 50;
+    const RISK_PERCENT: f64 = 0.01;
+    const STOP_LOSS_PIPS: f64 = 20.0;
+    const RR_RATIO: f64 = 2.0;
+    const MIN_VOLUME: f64 = 10.0;
+
+    // Extract data
+    let price = data.get("close").copied().unwrap_or(0.0);
+    let macd = data.get("macd").copied().unwrap_or(0.0);
+    let signal_line = data.get("signal_line").copied().unwrap_or(0.0);
+    let account_balance = data.get("account_balance").copied().unwrap_or(10000.0);
+    let volume = data.get("volume").copied().unwrap_or(0.0);
+    let sma = data.get("sma_50").copied().unwrap_or(0.0);
+
+    // Volume check
+    if volume < MIN_VOLUME {
+        return ("HOLD".to_string(), None);
+    }
+
+    // Calculate position size
+    let pip_value = 10.0;
+    let risk_amount = account_balance * RISK_PERCENT;
+    let lot_size = risk_amount / (STOP_LOSS_PIPS * pip_value);
+
+    // MACD divergence logic with SMA confirmation
+    if macd > signal_line && price > sma {
+        let sl = price - STOP_LOSS_PIPS * 0.0001;
+        let tp = price + (STOP_LOSS_PIPS * RR_RATIO) * 0.0001;
+        let params = Some(HashMap::from([
+            ("lot_size".to_string(), lot_size),
+            ("sl".to_string(), sl),
+            ("tp".to_string(), tp),
+        ]));
+        return ("BUY".to_string(), params);
+    } else if macd < signal_line && price < sma {
+        let sl = price + STOP_LOSS_PIPS * 0.0001;
+        let tp = price - (STOP_LOSS_PIPS * RR_RATIO) * 0.0001;
+        let params = Some(HashMap::from([
+            ("lot_size".to_string(), lot_size),
+            ("sl".to_string(), sl),
+            ("tp".to_string(), tp),
+        ]));
+        return ("SELL".to_string(), params);
+    }
+    ("HOLD".to_string(), None)
+}
+`,
     },
     PineScript: {
-      default: `//@version=5\nindicator("My Trading Strategy", overlay=true)\n\n// Your Pine Script trading logic here\n// This bot follows trends using a default 50 Moving Average (assumed for backtesting).\n// Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n\n// ... (code for basic strategy, volume check, SL/TP)\nstrategy.entry("Long", strategy.long, when = close > open)\nstrategy.entry("Short", strategy.short, when = close < open)\n`,
-      "Trailing Stop Loss": `//@version=5\nstrategy("Trailing Stop Loss Strategy", overlay=true)\n\n// Implement a trailing stop loss strategy\n// Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n// Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n\n// ... (code for trailing stop loss, volume check, etc.)\n`,
-      "Risk Management (SL/TP)": `//@version=5\nstrategy("Risk Management SL/TP", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)\n\n// Implement fixed Stop Loss (SL) and Take Profit (TP) levels\n// Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n// Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n\n// ... (code for SL/TP, volume check, etc.)\n`,
-      "RSI Crossover (Mandatory)": `//@version=5\nstrategy("RSI Crossover Strategy (Mandatory)", overlay=true)\n\n// MANDATORY STRATEGY: RSI Crossover\n// Also includes mandatory Risk-to-Reward, Money Management, and Volume check.\n// Default 50 Moving Average logic assumed for backtesting.\n\n// ... (RSI calculation and crossover logic)\n// ... (Risk management and volume check logic)\n`,
-      "MACD Divergence (Optional)": `//@version=5\nstrategy("MACD Divergence Strategy (Optional)", overlay=true)\n\n// OPTIONAL STRATEGY: MACD Divergence\n// Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n// Default 50 Moving Average logic assumed for backtesting.\n\n// ... (MACD calculation and divergence logic)\n// ... (Risk management and volume check logic)\n`,
+      default: `//@version=5
+strategy("Default Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+// Description:
+// - Default trading strategy based on MQL5 standards.
+// - Uses 50-period SMA for trend confirmation.
+// - Implements 1:2 risk-to-reward with SL/TP.
+// - Includes volume check for trade entry.
+// - Risks 1% of account equity per trade.
+
+// Input parameters
+sma_period = 50
+risk_percent = 0.01
+stop_loss_pips = 20
+rr_ratio = 2.0
+min_volume = 10.0
+
+// Calculate indicators
+sma = ta.sma(close, sma_period)
+lot_size = math.floor(strategy.equity * risk_percent / (stop_loss_pips * 10))
+
+// Volume check
+if ta.volume < min_volume
+    strategy.cancel_all()
+    strategy.close_all()
+
+// Trading logic
+if close > sma
+    sl = close - stop_loss_pips * 0.0001
+    tp = close + (stop_loss_pips * rr_ratio) * 0.0001
+    strategy.entry("Long", strategy.long, qty=lot_size, stop=sl, limit=tp)
+else if close < sma
+    sl = close + stop_loss_pips * 0.0001
+    tp = close - (stop_loss_pips * rr_ratio) * 0.0001
+    strategy.entry("Short", strategy.short, qty=lot_size, stop=sl, limit=tp)
+`,
+      "Trailing Stop Loss": `//@version=5
+strategy("Trailing Stop Loss Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+// Description:
+// - Trailing Stop Loss strategy based on MQL5 standards.
+// - Uses 50-period SMA for trend confirmation.
+// - Implements trailing stop with 1:2 risk-to-reward.
+// - Includes volume check for trade entry.
+// - Risks 1% of account equity per trade.
+
+// Input parameters
+sma_period = 50
+risk_percent = 0.01
+trail_pips = 15
+stop_loss_pips = 20
+rr_ratio = 2.0
+min_volume = 10.0
+
+// Calculate indicators
+sma = ta.sma(close, sma_period)
+lot_size = math.floor(strategy.equity * risk_percent / (stop_loss_pips * 10))
+
+// Volume check
+if ta.volume < min_volume
+    strategy.cancel_all()
+    strategy.close_all()
+
+// Trailing stop logic
+var float trailing_sl = 0.0
+if strategy.position_size > 0 and close > high[1]
+    trailing_sl := math.max(trailing_sl, close - trail_pips * 0.0001)
+    strategy.exit("Exit Long", "Long", stop=trailing_sl)
+else if strategy.position_size < 0 and close < low[1]
+    trailing_sl := math.min(trailing_sl, close + trail_pips * 0.0001)
+    strategy.exit("Exit Short", "Short", stop=trailing_sl)
+
+// Entry logic
+if close > sma and strategy.position_size == 0
+    sl = close - stop_loss_pips * 0.0001
+    tp = close + (stop_loss_pips * rr_ratio) * 0.0001
+    strategy.entry("Long", strategy.long, qty=lot_size, stop=sl, limit=tp)
+else if close < sma and strategy.position_size == 0
+    sl = close + stop_loss_pips * 0.0001
+    tp = close - (stop_loss_pips * rr_ratio) * 0.0001
+    strategy.entry("Short", strategy.short, qty=lot_size, stop=sl, limit=tp)
+`,
+      "Risk Management (SL/TP)": `//@version=5
+strategy("Risk Management SL/TP", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+// Description:
+// - Fixed SL/TP strategy based on MQL5 standards.
+// - Uses 50-period SMA for trend confirmation.
+// - Implements fixed 20-pip SL and 40-pip TP (1:2 RTR).
+// - Includes volume check for trade entry.
+// - Risks 1% of account equity per trade.
+
+// Input parameters
+sma_period = 50
+risk_percent = 0.01
+stop_loss_pips = 20
+rr_ratio = 2.0
+min_volume = 10.0
+
+// Calculate indicators
+sma = ta.sma(close, sma_period)
+lot_size = math.floor(strategy.equity * risk_percent / (stop_loss_pips * 10))
+
+// Volume check
+if ta.volume < min_volume
+    strategy.cancel_all()
+    strategy.close_all()
+
+// Trading logic
+if close > sma
+    sl = close - stop_loss_pips * 0.0001
+    tp = close + (stop_loss_pips * rr_ratio) * 0.0001
+    strategy.entry("Long", strategy.long, qty=lot_size, stop=sl, limit=tp)
+else if close < sma
+    sl = close + stop_loss_pips * 0.0001
+    tp = close - (stop_loss_pips * rr_ratio) * 0.0001
+    strategy.entry("Short", strategy.short, qty=lot_size, stop=sl, limit=tp)
+`,
+      "RSI Crossover (Mandatory)": `//@version=5
+strategy("RSI Crossover Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+// Description:
+// - RSI Crossover strategy based on MQL5 standards (Mandatory).
+// - Uses RSI (14) with overbought (70) and oversold (30) levels.
+// - Confirms trend with 50-period SMA.
+// - Implements 1:2 risk-to-reward with SL/TP.
+// - Includes volume check for trade entry.
+// - Risks 1% of account equity per trade.
+
+// Input parameters
+rsi_period = 14
+overbought = 70
+oversold = 30
+sma_period = 50
+risk_percent = 0.01
+stop_loss_pips = 20
+rr_ratio = 2.0
+min_volume = 10.0
+
+// Calculate indicators
+rsi = ta.rsi(close, rsi_period)
+sma = ta.sma(close, sma_period)
+lot_size = math.floor(strategy.equity * risk_percent / (stop_loss_pips * 10))
+
+// Volume check
+if ta.volume < min_volume
+    strategy.cancel_all()
+    strategy.close_all()
+
+// Trading logic
+if rsi < oversold and close > sma
+    sl = close - stop_loss_pips * 0.0001
+    tp = close + (stop_loss_pips * rr_ratio) * 0.0001
+    strategy.entry("Long", strategy.long, qty=lot_size, stop=sl, limit=tp)
+else if rsi > overbought and close < sma
+    sl = close + stop_loss_pips * 0.0001
+    tp = close - (stop_loss_pips * rr_ratio) * 0.0001
+    strategy.entry("Short", strategy.short, qty=lot_size, stop=sl, limit=tp)
+`,
+      "MACD Divergence (Optional)": `//@version=5
+strategy("MACD Divergence Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+// Description:
+// - MACD Divergence strategy based on MQL5 standards (Optional).
+// - Uses MACD (12,26,9) for divergence detection.
+// - Confirms trend with 50-period SMA.
+// - Implements 1:2 risk-to-reward with SL/TP.
+// - Includes volume check for trade entry.
+// - Risks 1% of account equity per trade.
+
+// Input parameters
+fast_ema = 12
+slow_ema = 26
+signal = 9
+sma_period = 50
+risk_percent = 0.01
+stop_loss_pips = 20
+rr_ratio = 2.0
+min_volume = 10.0
+
+// Calculate indicators
+[macd, signal_line, _] = ta.macd(close, fast_ema, slow_ema, signal)
+sma = ta.sma(close, sma_period)
+lot_size = math.floor(strategy.equity * risk_percent / (stop_loss_pips * 10))
+
+// Volume check
+if ta.volume < min_volume
+    strategy.cancel_all()
+    strategy.close_all()
+
+// Trading logic
+if macd > signal_line and close > sma
+    sl = close - stop_loss_pips * 0.0001
+    tp = close + (stop_loss_pips * rr_ratio) * 0.0001
+    strategy.entry("Long", strategy.long, qty=lot_size, stop=sl, limit=tp)
+else if macd < signal_line and close < sma
+    sl = close + stop_loss_pips * 0.0001
+    tp = close - (stop_loss_pips * rr_ratio) * 0.0001
+    strategy.entry("Short", strategy.short, qty=lot_size, stop=sl, limit=tp)
+`,
     },
     MQL5: {
-      default: `//+------------------------------------------------------------------+\n//|                                                MyTradingBot.mq5 |\n//|                                                     Momo Platform |\n//+------------------------------------------------------------------+\n#property copyright "Momo Platform"\n#property version   "1.00"\n#property description "Default MQL5 Trading Bot. Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default."\n\n// ... (standard MQL5 structure)\nvoid OnTick()\n  {\n   // Your MQL5 trading logic here\n   // Example: Simple buy/sell logic, assuming 50 MA is handled by indicators/logic.\n   // Implement volume check before entry and apply SL/TP for all trades.\n  }\n`,
-      "Trailing Stop Loss": `//+------------------------------------------------------------------+\n//|                                            TrailingStopLoss.mq5 |\n//|                                                     Momo Platform |\n//+------------------------------------------------------------------+\n#property copyright "Momo Platform"\n#property version   "1.00"\n#property description "MQL5 Trailing Stop Loss Strategy. Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default."\n\n// ... (code for trailing stop loss, volume check, etc.)\n`,
-      "Risk Management (SL/TP)": `//+------------------------------------------------------------------+\n//|                                            RiskManagement.mq5 |\n//|                                                     Momo Platform |\n//+------------------------------------------------------------------+\n#property copyright "Momo Platform"\n#property version   "1.00"\n#property description "MQL5 Risk Management (SL/TP) Strategy. Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default."\n\n// ... (code for SL/TP, volume check, etc.)\n`,
-      "RSI Crossover (Mandatory)": `//+------------------------------------------------------------------+\n//|                                                RSICrossover.mq5 |\n//|                                                     Momo Platform |\n//+------------------------------------------------------------------+\n#property copyright "Momo Platform"\n#property version   "1.00"\n#property description "MQL5 RSI Crossover Strategy (Mandatory). Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default."\n\n// ... (RSI calculation and crossover logic)\n// ... (Risk management and volume check logic)\n`,
-      "MACD Divergence (Optional)": `//+------------------------------------------------------------------+\n//|                                            MACDDivergence.mq5 |\n//|                                                     Momo Platform |\n//+------------------------------------------------------------------+\n#property copyright "Momo Platform"\n#property version   "1.00"\n#property description "MQL5 MACD Divergence Strategy (Optional). Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default."\n\n// ... (MACD calculation and divergence logic)\n// ... (Risk management and volume check logic)\n`,
-    },
-    MQL4: {
-      default: `//+------------------------------------------------------------------+\n//|                                                MyTradingBot.mq4 |\n//|                                                     Momo Platform |\n//+------------------------------------------------------------------+\n#property copyright "Momo Platform"\n#property version   "1.00"\n#property description "Default MQL4 Trading Bot. Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default."\n\n// ... (standard MQL4 structure)\nint start()\n  {\n   // Your MQL4 trading logic here\n   // Example: Simple buy/sell logic, assuming 50 MA is handled by indicators/logic.\n   // Implement volume check before entry and apply SL/TP for all trades.\n   return(0);\n  }\n`,
-      "Trailing Stop Loss": `//+------------------------------------------------------------------+\n//|                                            TrailingStopLoss.mq4 |\n//|                                                     Momo Platform |\n//+------------------------------------------------------------------+\n#property copyright "Momo Platform"\n#property version   "1.00"\n#property description "MQL4 Trailing Stop Loss Strategy. Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default."\n\n// ... (code for trailing stop loss, volume check, etc.)\n`,
-      "Risk Management (SL/TP)": `//+------------------------------------------------------------------+\n//|                                            RiskManagement.mq4 |\n//|                                                     Momo Platform |\n//+------------------------------------------------------------------+\n#property copyright "Momo Platform"\n#property version   "1.00"\n#property description "MQL4 Risk Management (SL/TP) Strategy. Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default."\n\n// ... (code for SL/TP, volume check, etc.)\n`,
-      "RSI Crossover (Mandatory)": `//+------------------------------------------------------------------+\n//|                                                RSICrossover.mq4 |\n//|                                                     Momo Platform |\n//+------------------------------------------------------------------+\n#property copyright "Momo Platform"\n#property version   "1.00"\n#property description "MQL4 RSI Crossover Strategy (Mandatory). Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default."\n\n// ... (RSI calculation and crossover logic)\n// ... (Risk management and volume check logic)\n`,
-      "MACD Divergence (Optional)": `//+------------------------------------------------------------------+\n//|                                            MACDDivergence.mq4 |\n//|                                                     Momo Platform |\n//+------------------------------------------------------------------+\n#property copyright "Momo Platform"\n#property version   "1.00"\n#property description "MQL4 MACD Divergence Strategy (Optional). Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default."\n\n// ... (MACD calculation and divergence logic)\n// ... (Risk management and volume check logic)\n`,
-    },
-    Elixir: {
-      default: `defmodule MyTradingBot do\n  @moduledoc """\n  Your Elixir trading logic here.\n  This bot follows trends using a default 50 Moving Average (assumed for backtesting).\n  Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n  """\n\n  def handle_tick(data) do\n    # ... (basic trading logic, volume check, SL/TP)\n    :hold\n  end\nend\n`,
-      "Trailing Stop Loss": `defmodule TrailingStopLoss do\n  @moduledoc """\n  Elixir Trailing Stop Loss Strategy.\n  Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n  Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n  """\n\n  def handle_tick(...) do\n    # ... (code for trailing stop loss, volume check, etc.)\n    :hold\n  end\nend\n`,
-      "Risk Management (SL/TP)": `defmodule RiskManagement do\n  @moduledoc """\n  Elixir Risk Management (SL/TP) Strategy.\n  Mandatory: Includes Risk-to-Reward, Money Management, and Volume check.\n  Default 50 Moving Average logic assumed for backtesting if not explicitly defined.\n  """\n\n  def handle_tick(...) do\n    # ... (code for SL/TP, volume check, etc.)\n    :hold\n  end\nend\n`,
-      "RSI Crossover (Mandatory)": `defmodule RSICrossover do\n  @moduledoc """\n  MANDATORY STRATEGY: Elixir RSI Crossover.\n  Also includes mandatory Risk-to-Reward, Money Management, and Volume check.\n  Default 50 Moving Average logic assumed for backtesting.\n  """\n\n  def handle_tick(...) do\n    # ... (RSI calculation and crossover logic)\n    # ... (Risk management and volume check logic)\n    :hold\n  end\nend\n`,
-      "MACD Divergence (Optional)": `defmodule MACDDivergence do\n  @moduledoc """\n  OPTIONAL STRATEGY: Elixir MACD Divergence.\n  Includes mandatory Risk-to-Reward, Money Management, and Volume check.\n  Default 50 Moving Average logic assumed for backtesting.\n  """\n\n  def handle_tick(...) do\n    # ... (MACD calculation and divergence logic)\n    # ... (Risk management and volume check logic)\n    :hold\n  end\nend\n`,
-    },
-    DBots: {
-      default: `{\n  "name": "MyDefaultBot",\n  "description": "A basic trading bot for Momo. Includes mandatory RTR, SL/TP, Volume Check. 50 MA default.",\n  "logic": [\n    {"type": "comment", "text": "Your DBot logic here. Assumes 50 MA for decisions, enforces RTR, SL/TP, and volume checks."},\n    {\n      "type": "condition",\n      "operator": "gt",\n      "operand1": {"type": "ohlc", "field": "close"}, \n      "operand2": {"type": "ohlc", "field": "open"},\n      "then": {"type": "action", "action": "buy", "amount": 10}\n    }\n  ]\n}`,
-      "Trailing Stop Loss": `{\n  "name": "TrailingStopLossBot",\n  "description": "DBot with trailing stop loss. Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default.",\n  "logic": [\n    {"type": "comment", "text": "DBot logic for trailing stop loss. Also includes mandatory RTR, SL/TP, Volume Check."}\n  ]\n}`,
-      "Risk Management (SL/TP)": `{\n  "name": "RiskManagementBot",\n  "description": "DBot with fixed Stop Loss and Take Profit. Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default.",\n  "logic": [\n    {"type": "comment", "text": "DBot logic for SL/TP. Also includes mandatory RTR, SL/TP, Volume Check."}\n  ]\n}`,
-      "RSI Crossover (Mandatory)": `{\n  "name": "RSICrossoverBot",\n  "description": "Mandatory: DBot using RSI crossover strategy. Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default.",\n  "logic": [\n    {"type": "comment", "text": "DBot logic for RSI Crossover. Also includes mandatory RTR, SL/TP, Volume Check."}\n  ]\n}`,
-      "MACD Divergence (Optional)": `{\n  "name": "MACDDivergenceBot",\n  "description": "Optional: DBot using MACD divergence strategy. Incl. Mandatory Rules: RTR, SL/TP, Volume Check. 50 MA default.",\n  "logic": [\n    {"type": "comment", "text": "DBot logic for MACD Divergence. Also includes mandatory RTR, SL/TP, Volume Check."}\n  ]\n}`,
-    },
-  }
+      default: `//+------------------------------------------------------------------+
+//|                                                DefaultStrategy.mq5 |
+//|                                                     Momo Platform |
+//|------------------------------------------------------------------+
+#property copyright "Momo Platform"
+#property link      "https://momo-platform.com"
+#property version   "1.00"
+#property description "Default MQL5 trading strategy. Uses 50 SMA for trend confirmation, 1:2 RTR with SL/TP, volume check, 1% risk per trade."
 
-  const strategyTemplates = {
-    Mandatory: [
-      { label: "RSI Crossover", value: "RSI Crossover (Mandatory)" },
-      { label: "Risk Management (SL/TP)", value: "Risk Management (SL/TP)" },
-    ],
-    Optional: [
-      { label: "Default (Basic Buy/Sell)", value: "default" },
-      { label: "Trailing Stop Loss", value: "Trailing Stop Loss" },
-      { label: "MACD Divergence", value: "MACD Divergence (Optional)" },
-    ],
-  }
+// Input parameters
+input int    sma_period = 50;          // SMA Period
+input double risk_percent = 0.01;      // Risk per trade (%)
+input double stop_loss_pips = 20;      // Stop Loss (pips)
+input double rr_ratio = 2.0;           // Risk-to-Reward Ratio
+input double min_volume = 10.0;        // Minimum Volume (lots)
 
-  const indicatorOptions = [
-    { label: "Moving Average (SMA)", value: "SMA" },
-    { label: "Relative Strength Index (RSI)", value: "RSI" },
-    { label: "Moving Average Convergence Divergence (MACD)", value: "MACD" },
-    { label: "Bollinger Bands (BB)", value: "Bollinger Bands" },
-    { label: "Stochastic Oscillator", value: "Stochastic Oscillator" },
-    { label: "Average True Range (ATR)", value: "ATR" },
-  ]
+// Global variables
+int sma_handle;
 
-  // Initialize botCode with default code for the initial language on mount
-  useEffect(() => {
-    setBotCode(defaultCodeTemplates[botLanguage as keyof typeof defaultCodeTemplates].default)
-  }, [])
+//+------------------------------------------------------------------+
+//| Expert initialization function                                     |
+//+------------------------------------------------------------------+
+int OnInit() {
+   sma_handle = iMA(_Symbol, PERIOD_CURRENT, sma_period, 0, MODE_SMA, PRICE_CLOSE);
+   if (sma_handle == INVALID_HANDLE) {
+      Print("Error creating SMA indicator");
+      return(INIT_FAILED);
+   }
+   return(INIT_SUCCEEDED);
+}
 
-  const handleLanguageChange = (value: string) => {
-    setBotLanguage(value)
-    setSelectedTemplate("default") // Reset template when language changes
-    setBotCode(defaultCodeTemplates[value as keyof typeof defaultCodeTemplates].default)
-    setCompilationStatus("idle") // Reset compilation status
-    setCompilationLog("")
-    setNaturalLanguagePrompt("") // Clear AI prompt
-    setSelectedIndicators([]) // Clear selected indicators
-  }
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                   |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+   if (sma_handle != INVALID_HANDLE) IndicatorRelease(sma_handle);
+}
 
-  const handleTemplateChange = (value: string) => {
-    setSelectedTemplate(value)
-    setBotCode(
-      defaultCodeTemplates[botLanguage as keyof typeof defaultCodeTemplates][
-        value as keyof (typeof defaultCodeTemplates)["Python"]
-      ],
-    )
-    setCompilationStatus("idle") // Reset compilation status
-    setCompilationLog("")
-    setNaturalLanguagePrompt("") // Clear AI prompt
-    setSelectedIndicators([]) // Clear selected indicators
-  }
+//+------------------------------------------------------------------+
+//| Expert tick function                                              |
+//+------------------------------------------------------------------+
+void OnTick() {
+   // Extract data
+   double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double account_balance = AccountBalance();
+   double volume = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME);
+   double sma[];
+   ArraySetAsSeries(sma, true);
+   CopyBuffer(sma_handle, 0, 0, 1, sma);
 
-  const handleIndicatorChange = (value: string) => {
-    setSelectedIndicators((prev) => {
-      if (prev.includes(value)) {
-        return prev.filter((item) => item !== value)
-      } else {
-        return [...prev, value]
+   // Volume check
+   if (volume < min_volume) return;
+
+   // Calculate position size
+   double pip_value = 10.0; // Adjust based on symbol
+   double risk_amount = account_balance * risk_percent;
+   double lot_size = NormalizeDouble(risk_amount / (stop_loss_pips * pip_value), 2);
+
+   // Trading logic
+   CTrade trade;
+   if (price > sma[0]) {
+      double sl = price - stop_loss_pips * Point();
+      double tp = price + (stop_loss_pips * rr_ratio) * Point();
+      trade.Buy(lot_size, _Symbol, price, sl, tp);
+   } else if (price < sma[0]) {
+      double sl = price + stop_loss_pips * Point();
+      double tp = price - (stop_loss_pips * rr_ratio) * Point();
+      trade.Sell(lot_size, _Symbol, price, sl, tp);
+   }
+}
+`,
+      "Trailing Stop Loss": `//+------------------------------------------------------------------+
+//|                                       TrailingStopLossStrategy.mq5 |
+//|                                                     Momo Platform |
+//|------------------------------------------------------------------+
+#property copyright "Momo Platform"
+#property link      "https://momo-platform.com"
+#property version   "1.00"
+#property description "MQL5 Trailing Stop Loss strategy. Uses 50 SMA, trailing stop, 1:2 RTR, volume check, 1% risk."
+
+// Input parameters
+input int    sma_period = 50;          // SMA Period
+input double risk_percent = 0.01;      // Risk per trade (%)
+input double trail_pips = 15;          // Trailing Stop (pips)
+input double stop_loss_pips = 20;      // Initial Stop Loss (pips)
+input double rr_ratio = 2.0;           // Risk-to-Reward Ratio
+input double min_volume = 10.0;        // Minimum Volume (lots)
+
+// Global variables
+int sma_handle;
+
+//+------------------------------------------------------------------+
+//| Expert initialization function                                     |
+//+------------------------------------------------------------------+
+int OnInit() {
+   sma_handle = iMA(_Symbol, PERIOD_CURRENT, sma_period, 0, MODE_SMA, PRICE_CLOSE);
+   if (sma_handle == INVALID_HANDLE) {
+      Print("Error creating SMA indicator");
+      return(INIT_FAILED);
+   }
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                   |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+   if (sma_handle != INVALID_HANDLE) IndicatorRelease(sma_handle);
+}
+
+//+------------------------------------------------------------------+
+//| Expert tick function                                              |
+//+------------------------------------------------------------------+
+void OnTick() {
+   // Extract data
+   double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double account_balance = AccountBalance();
+   double volume = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME);
+   double sma[];
+   ArraySetAsSeries(sma, true);
+   CopyBuffer(sma_handle, 0, 0, 1, sma);
+
+   // Volume check
+   if (volume < min_volume) return;
+
+   // Calculate position size
+   double pip_value = 10.0;
+   double risk_amount = account_balance * risk_percent;
+   double lot_size = NormalizeDouble(risk_amount / (stop_loss_pips * pip_value), 2);
+
+   // Trailing stop logic
+   CTrade trade;
+   for (int i = PositionsTotal() - 1; i >= 0; i--) {
+      ulong ticket = PositionGetTicket(i);
+      if (PositionSelectByTicket(ticket)) {
+         double current_sl = PositionGetDouble(POSITION_SL);
+         if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && price > PositionGetDouble(POSITION_PRICE_OPEN)) {
+            double new_sl = price - trail_pips * Point();
+            if (new_sl > current_sl) trade.PositionModify(ticket, new_sl, PositionGetDouble(POSITION_TP));
+         } else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && price < PositionGetDouble(POSITION_PRICE_OPEN)) {
+            double new_sl = price + trail_pips * Point();
+            if (new_sl < current_sl || current_sl == 0) trade.PositionModify(ticket, new_sl, PositionGetDouble(POSITION_TP));
+         }
       }
-    })
-    // Optionally, update botCode based on selected indicators (conceptual)
-    setBotCode((prevCode) => {
-      let updatedCode = prevCode
-      if (value === "SMA") {
-        updatedCode += `\n# Indicator Added: Simple Moving Average (SMA)`
-      } else if (value === "RSI") {
-        updatedCode += `\n# Indicator Added: Relative Strength Index (RSI)`
+   }
+
+   // Entry logic
+   if (PositionsTotal() == 0) {
+      if (price > sma[0]) {
+         double sl = price - stop_loss_pips * Point();
+         double tp = price + (stop_loss_pips * rr_ratio) * Point();
+         trade.Buy(lot_size, _Symbol, price, sl, tp);
+      } else if (price < sma[0]) {
+         double sl = price + stop_loss_pips * Point();
+         double tp = price - (stop_loss_pips * rr_ratio) * Point();
+         trade.Sell(lot_size, _Symbol, price, sl, tp);
       }
-      // Add more indicator-specific code snippets here
-      return updatedCode
-    })
-  }
+   }
+}
+`,
+      "Risk Management (SL/TP)": `//+------------------------------------------------------------------+
+//|                                         RiskManagementStrategy.mq5 |
+//|                                                     Momo Platform |
+//|------------------------------------------------------------------+
+#property copyright "Momo Platform"
+#property link      "https://momo-platform.com"
+#property version   "1.00"
+#property description "MQL5 Fixed SL/TP strategy. Uses 50 SMA, 20-pip SL, 40-pip TP (1:2 RTR), volume check, 1% risk."
 
-  const handleCompileBot = () => {
-    setCompilationStatus("compiling")
-    setCompilationLog("Compiling bot code...\n")
+// Input parameters
+input int    sma_period = 50;          // SMA Period
+input double risk_percent = 0.01;      // Risk per trade (%)
+input double stop_loss_pips = 20;      // Stop Loss (pips)
+input double rr_ratio = 2.0;           // Risk-to-Reward Ratio
+input double min_volume = 10.0;        // Minimum Volume (lots)
 
-    setTimeout(() => {
-      const randomSuccess = Math.random() > 0.2 // 80% success rate for compilation
-      if (randomSuccess) {
-        setCompilationLog((prev) => prev + "Compilation successful! No errors found.\n")
-        setCompilationStatus("success")
-        toast({
-          title: "Compilation Successful!",
-          description: "Your bot code compiled without errors.",
-          variant: "default",
-        })
-      } else {
-        const errorMessages = [
-          "Error: Syntax error on line 25: Unexpected token '}'.",
-          "Error: Undefined variable 'trade_volume' at line 10.",
-          "Error: Function 'calculate_profit' not found.",
-          "Warning: Unused variable 'debug_mode' at line 5.",
-          "Error: Division by zero in 'price_calc' function.",
-          "Error: Indicator 'SMA' not properly defined for period 50.",
-          "Error: Missing closing parenthesis on line 18.",
-          "Error: Risk-to-Reward ratio not explicitly defined in logic.",
-          "Error: Money management (SL/TP) missing for trade entry.",
-          "Error: Volume check missing before trade entry.",
-        ]
-        const randomError = errorMessages[Math.floor(Math.random() * errorMessages.length)]
-        setCompilationLog((prev) => prev + `Compilation failed:\n${randomError}\n`)
-        setCompilationStatus("error")
-        toast({
-          title: "Compilation Failed!",
-          description: "Please check the compilation log for details.",
-          variant: "destructive",
-        })
+// Global variables
+int sma_handle;
+
+//+------------------------------------------------------------------+
+//| Expert initialization function                                     |
+//+------------------------------------------------------------------+
+int OnInit() {
+   sma_handle = iMA(_Symbol, PERIOD_CURRENT, sma_period, 0, MODE_SMA, PRICE_CLOSE);
+   if (sma_handle == INVALID_HANDLE) {
+      Print("Error creating SMA indicator");
+      return(INIT_FAILED);
+   }
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                   |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+   if (sma_handle != INVALID_HANDLE) IndicatorRelease(sma_handle);
+}
+
+//+------------------------------------------------------------------+
+//| Expert tick function                                              |
+//+------------------------------------------------------------------+
+void OnTick() {
+   // Extract data
+   double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double account_balance = AccountBalance();
+   double volume = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME);
+   double sma[];
+   ArraySetAsSeries(sma, true);
+   CopyBuffer(sma_handle, 0, 0, 1, sma);
+
+   // Volume check
+   if (volume < min_volume) return;
+
+   // Calculate position size
+   double pip_value = 10.0;
+   double risk_amount = account_balance * risk_percent;
+   double lot_size = NormalizeDouble(risk_amount / (stop_loss_pips * pip_value), 2);
+
+   // Trading logic
+   CTrade trade;
+   if (price > sma[0]) {
+      double sl = price - stop_loss_pips * Point();
+      double tp = price + (stop_loss_pips * rr_ratio) * Point();
+      trade.Buy(lot_size, _Symbol, price, sl, tp);
+   } else if (price < sma[0]) {
+      double sl = price + stop_loss_pips * Point();
+      double tp = price - (stop_loss_pips * rr_ratio) * Point();
+      trade.Sell(lot_size, _Symbol, price, sl, tp);
+   }
+}
+`,
+      "RSI Crossover (Mandatory)": `//+------------------------------------------------------------------+
+//|                                            RSICrossoverStrategy.mq5 |
+//|                                                     Momo Platform |
+//|------------------------------------------------------------------+
+#property copyright "Momo Platform"
+#property link      "https://momo-platform.com"
+#property version   "1.00"
+#property description "MQL5 RSI Crossover strategy (Mandatory). Uses RSI(14), 50 SMA, 1:2 RTR, volume check, 1% risk."
+
+// Input parameters
+input int    rsi_period = 14;          // RSI Period
+input double overbought = 70;          // RSI Overbought Level
+input double oversold = 30;            // RSI Oversold Level
+input int    sma_period = 50;          // SMA Period
+input double risk_percent = 0.01;      // Risk per trade (%)
+input double stop_loss_pips = 20;      // Stop Loss (pips)
+input double rr_ratio = 2.0;           // Risk-to-Reward Ratio
+input double min_volume = 10.0;        // Minimum Volume (lots)
+
+// Global variables
+int rsi_handle;
+int sma_handle;
+
+//+------------------------------------------------------------------+
+//| Expert initialization function                                     |
+//+------------------------------------------------------------------+
+int OnInit() {
+   rsi_handle = iRSI(_Symbol, PERIOD_CURRENT, rsi_period, PRICE_CLOSE);
+   sma_handle = iMA(_Symbol, PERIOD_CURRENT, sma_period, 0, MODE_SMA, PRICE_CLOSE);
+   if (rsi_handle == INVALID_HANDLE || sma_handle == INVALID_HANDLE) {
+      Print("Error creating indicators");
+      return(INIT_FAILED);
+   }
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                   |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+   if (rsi_handle != INVALID_HANDLE) IndicatorRelease(rsi_handle);
+   if (sma_handle != INVALID_HANDLE) IndicatorRelease(sma_handle);
+}
+
+//+------------------------------------------------------------------+
+//| Expert tick function                                              |
+//+------------------------------------------------------------------+
+void OnTick() {
+   // Extract data
+   double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double account_balance = AccountBalance();
+   double volume = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME);
+   double rsi[];
+   double sma[];
+   ArraySetAsSeries(rsi, true);
+   ArraySetAsSeries(sma, true);
+   CopyBuffer(rsi_handle, 0, 0, 1, rsi);
+   CopyBuffer(sma_handle, 0, 0, 1, sma);
+
+   // Volume check
+   if (volume < min_volume) return;
+
+   // Calculate position size
+   double pip_value = 10.0;
+   double risk_amount = account_balance * risk_percent;
+   double lot_size = NormalizeDouble(risk_amount / (stop_loss_pips * pip_value), 2);
+
+   // Trading logic
+   CTrade trade;
+   if (rsi[0] < oversold && price > sma[0]) {
+      double sl = price - stop_loss_pips * Point();
+      double tp = price + (stop_loss_pips * rr_ratio) * Point();
+      trade.Buy(lot_size, _Symbol, price, sl, tp);
+   } else if (rsi[0] > overbought && price < sma[0]) {
+      double sl = price + stop_loss_pips * Point();
+      double tp = price - (stop_loss_pips * rr_ratio) * Point();
+      trade.Sell(lot_size, _Symbol, price, sl, tp);
+   }
+}
+`,
+      "MACD Divergence (Optional)": `//+------------------------------------------------------------------+
+//|                                          MACDDivergenceStrategy.mq5 |
+//|                                                     Momo Platform |
+//|------------------------------------------------------------------+
+#property copyright "Momo Platform"
+#property link      "https://momo-platform.com"
+#property version   "1.00"
+#property description "MQL5 MACD Divergence strategy (Optional). Uses MACD(12,26,9), 50 SMA, 1:2 RTR, volume check, 1% risk."
+
+// Input parameters
+input int    fast_ema = 12;            // MACD Fast EMA
+input int    slow_ema = 26;            // MACD Slow EMA
+input int    signal = 9;               // MACD Signal Line
+input int    sma_period = 50;          // SMA Period
+input double risk_percent = 0.01;      // Risk per trade (%)
+input double stop_loss_pips = 20;      // Stop Loss (pips)
+input double rr_ratio = 2.0;           // Risk-to-Reward Ratio
+input double min_volume = 10.0;        // Minimum Volume (lots)
+
+// Global variables
+int macd_handle;
+int sma_handle;
+
+//+------------------------------------------------------------------+
+//| Expert initialization function                                     |
+//+------------------------------------------------------------------+
+int OnInit() {
+   macd_handle = iMACD(_Symbol, PERIOD_CURRENT, fast_ema, slow_ema, signal, PRICE_CLOSE);
+   sma_handle = iMA(_Symbol, PERIOD_CURRENT, sma_period, 0, MODE_SMA, PRICE_CLOSE);
+   if (macd_handle == INVALID_HANDLE || sma_handle == INVALID_HANDLE) {
+      Print("Error creating indicators");
+      return(INIT_FAILED);
+   }
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                   |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+   if (macd_handle != INVALID_HANDLE) IndicatorRelease(macd_handle);
+   if (sma_handle != INVALID_HANDLE) IndicatorRelease(sma_handle);
+}
+
+//+------------------------------------------------------------------+
+//| Expert tick function                                              |
+//+------------------------------------------------------------------+
+void OnTick() {
+   // Extract data
+   double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double account_balance = AccountBalance();
+   double volume = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME);
+   double macd[], signal_line[], sma[];
+   ArraySetAsSeries(macd, true);
+   ArraySetAsSeries(signal_line, true);
+   ArraySetAsSeries(sma, true);
+   CopyBuffer(macd_handle, MAIN_LINE, 0, 1, macd);
+   CopyBuffer(macd_handle, SIGNAL_LINE, 0, 1, signal_line);
+   CopyBuffer(sma_handle, 0, 0, 1, sma);
+
+   // Volume check
+   if (volume < min_volume) return;
+
+   // Calculate position size
+   double pip_value = 10.0;
+   double risk_amount = account_balance * risk_percent;
+   double lot_size = NormalizeDouble(risk_amount / (stop_loss_pips * pip_value), 2);
+
+   // Trading logic
+   CTrade trade;
+   if (macd[0] > signal_line[0] && price > sma[0]) {
+      double sl = price - stop_loss_pips * Point();
+      double tp = price + (stop_loss_pips * rr_ratio) * Point();
+      trade.Buy(lot_size, _Symbol, price, sl, tp);
+   } else if (macd[0] < signal_line[0] && price < sma[0]) {
+      double sl = price + stop_loss_pips * Point();
+      double tp = price - (stop_loss_pips * rr_ratio) * Point();
+      trade.Sell(lot_size, _Symbol, price, sl, tp);
+   }
+}
+
+`
+    }, "MQL4": {
+  default: `//+------------------------------------------------------------------+
+//|                                             DefaultStrategy.mq4   |
+//|                                                     Momo Platform |
+//|------------------------------------------------------------------+
+#property copyright "Momo Platform"
+#property link      "https://momo-platform.com"
+#property version   "1.00"
+#property description "Default MQL4 trading strategy. Uses 50 SMA for trend confirmation, 1:2 RTR with SL/TP, volume check, 1% risk per trade."
+// Input parameters
+input int    sma_period = 50;          // SMA Period
+input double risk_percent = 0.01;      // Risk per trade (%)
+input double stop_loss_pips = 20;      // Stop Loss (pips)
+input double rr_ratio = 2.0;           // Risk-to-Reward Ratio
+input double min_volume = 10.0;        // Minimum Volume (lots)
+//+------------------------------------------------------------------+
+//| Expert initialization function                                     |
+//+------------------------------------------------------------------+
+int OnInit() {
+   return(INIT_SUCCEEDED);
+}
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                   |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+   // No indicator handles to release in MQL4
+}
+//+------------------------------------------------------------------+
+//| Expert tick function                                              |
+//+------------------------------------------------------------------+
+void OnTick() {
+   // Extract data
+   double price = MarketInfo(_Symbol, MODE_BID);
+   double account_balance = AccountBalance();
+   double volume = MarketInfo(_Symbol, MODE_VOLUME);
+   double sma = iMA(_Symbol, PERIOD_CURRENT, sma_period, 0, MODE_SMA, PRICE_CLOSE, 0);
+   // Volume check
+   if (volume < min_volume) return;
+   // Calculate position size
+   double pip_value = 10.0;
+   double risk_amount = account_balance * risk_percent;
+   double lot_size = NormalizeDouble(risk_amount / (stop_loss_pips * pip_value), 2);
+   // Check for open positions
+   if (OrdersTotal() == 0) {
+      // Trading logic
+      if (price > sma) {
+         double sl = price - stop_loss_pips * Point;
+         double tp = price + (stop_loss_pips * rr_ratio) * Point;
+         OrderSend(_Symbol, OP_BUY, lot_size, price, 3, sl, tp, "Default Buy", 0, 0, clrGreen);
+      } else if (price < sma) {
+         double sl = price + stop_loss_pips * Point;
+         double tp = price - (stop_loss_pips * rr_ratio) * Point;
+         OrderSend(_Symbol, OP_SELL, lot_size, price, 3, sl, tp, "Default Sell", 0, 0, clrRed);
       }
-    }, 2000) // Simulate 2-second compilation
-  }
+   }
+}
+`,
+  "Trailing Stop Loss": `//+------------------------------------------------------------------+
+//|                                    TrailingStopLossStrategy.mq4   |
+//|                                                     Momo Platform |
+//|------------------------------------------------------------------+
+#property copyright "Momo Platform"
+#property link      "https://momo-platform.com"
+#property version   "1.00"
+#property description "MQL4 Trailing Stop Loss strategy. Uses 50 SMA, trailing stop, 1:2 RTR, volume check, 1% risk."
+// Input parameters
+input int    sma_period = 50;          // SMA Period
+input double risk_percent = 0.01;      // Risk per trade (%)
+input double trail_pips = 15;          // Trailing Stop (pips)
+input double stop_loss_pips = 20;      // Initial Stop Loss (pips)
+input double rr_ratio = 2.0;           // Risk-to-Reward Ratio
+input double min_volume = 10.0;        // Minimum Volume (lots)
+//+------------------------------------------------------------------+
+//| Expert initialization function                                     |
+//+------------------------------------------------------------------+
+int OnInit() {
+   return(INIT_SUCCEEDED);
+}
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                   |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+   // No indicator handles to release
+}
+//+------------------------------------------------------------------+
+//| Expert tick function                                              |
+//+------------------------------------------------------------------+
+void OnTick() {
+   // Extract data
+   double price = MarketInfo(_Symbol, MODE_BID);
+   double account_balance = AccountBalance();
+   double volume = MarketInfo(_Symbol, MODE_VOLUME);
+   double sma = iMA(_Symbol, PERIOD_CURRENT, sma_period, 0, MODE_SMA, PRICE_CLOSE, 0);
+   // Volume check
+   if (volume < min_volume) return;
+   // Calculate position size
+   double pip_value = 10.0;
+   double risk_amount = account_balance * risk_percent;
+   double lot_size = NormalizeDouble(risk_amount / (stop_loss_pips * pip_value), 2);
+   // Trailing stop logic
+   for (int i = 0; i < OrdersTotal(); i++) {
+      if (OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) {
+         if (OrderSymbol() == _Symbol) {
+            double current_sl = OrderStopLoss();
+            if (OrderType() == OP_BUY && price > OrderOpenPrice()) {
+               double new_sl = price - trail_pips * Point;
+               if (new_sl > current_sl) OrderModify(OrderTicket(), OrderOpenPrice(), new_sl, OrderTakeProfit(), 0, clrGreen);
+            } else if (OrderType() == OP_SELL && price < OrderOpenPrice()) {
+               double new_sl = price + trail_pips * Point;
+               if (new_sl < current_sl || current_sl == 0) OrderModify(OrderTicket(), OrderOpenPrice(), new_sl, OrderTakeProfit(), 0, clrRed);
+            }
+         }
+      }
+   }
+   // Entry logic
+   if (OrdersTotal() == 0) {
+      if (price > sma) {
+         double sl = price - stop_loss_pips * Point;
+         double tp = price + (stop_loss_pips * rr_ratio) * Point;
+         OrderSend(_Symbol, OP_BUY, lot_size, price, 3, sl, tp, "Trailing Buy", 0, 0, clrGreen);
+      } else if (price < sma) {
+         double sl = price + stop_loss_pips * Point;
+         double tp = price - (stop_loss_pips * rr_ratio) * Point;
+         OrderSend(_Symbol, OP_SELL, lot_size, price, 3, sl, tp, "Trailing Sell", 0, 0, clrRed);
+      }
+   }
+}
+`,
+  "Risk Management (SL/TP)": `//+------------------------------------------------------------------+
+//|                                     RiskManagementStrategy.mq4    |
+//|                                                     Momo Platform |
+//|------------------------------------------------------------------+
+#property copyright "Momo Platform"
+#property link      "https://momo-platform.com"
+#property version   "1.00"
+#property description "MQL4 Fixed SL/TP strategy. Uses 50 SMA, 20-pip SL, 40-pip TP (1:2 RTR), volume check, 1% risk."
+// Input parameters
+input int    sma_period = 50;          // SMA Period
+input double risk_percent = 0.01;      // Risk per trade (%)
+input double stop_loss_pips = 20;      // Stop Loss (pips)
+input double rr_ratio = 2.0;           // Risk-to-Reward Ratio
+input double min_volume = 10.0;        // Minimum Volume (lots)
+//+------------------------------------------------------------------+
+//| Expert initialization function                                     |
+//+------------------------------------------------------------------+
+int OnInit() {
+   return(INIT_SUCCEEDED);
+}
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                   |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+   // No indicator handles to release
+}
+//+------------------------------------------------------------------+
+//| Expert tick function                                              |
+//+------------------------------------------------------------------+
+void OnTick() {
+   // Extract data
+   double price = MarketInfo(_Symbol, MODE_BID);
+   double account_balance = AccountBalance();
+   double volume = MarketInfo(_Symbol, MODE_VOLUME);
+   double sma = iMA(_Symbol, PERIOD_CURRENT, sma_period, 0, MODE_SMA, PRICE_CLOSE, 0);
+   // Volume check
+   if (volume < min_volume) return;
+   // Calculate position size
+   double pip_value = 10.0;
+   double risk_amount = account_balance * risk_percent;
+   double lot_size = NormalizeDouble(risk_amount / (stop_loss_pips * pip_value), 2);
+   // Trading logic
+   if (OrdersTotal() == 0) {
+      if (price > sma) {
+         double sl = price - stop_loss_pips * Point;
+         double tp = price + (stop_loss_pips * rr_ratio) * Point;
+         OrderSend(_Symbol, OP_BUY, lot_size, price, 3, sl, tp, "Risk Buy", 0, 0, clrGreen);
+      } else if (price < sma) {
+         double sl = price + stop_loss_pips * Point;
+         double tp = price - (stop_loss_pips * rr_ratio) * Point;
+         OrderSend(_Symbol, OP_SELL, lot_size, price, 3, sl, tp, "Risk Sell", 0, 0, clrRed);
+      }
+   }
+}
+`,
+  "RSI Crossover (Mandatory)": `//+------------------------------------------------------------------+
+//|                                        RSICrossoverStrategy.mq4   |
+//|                                                     Momo Platform |
+//|------------------------------------------------------------------+
+#property copyright "Momo Platform"
+#property link      "https://momo-platform.com"
+#property version   "1.00"
+#property description "MQL4 RSI Crossover strategy (Mandatory). Uses RSI(14), 50 SMA, 1:2 RTR, volume check, 1% risk."
+// Input parameters
+input int    rsi_period = 14;          // RSI Period
+input double overbought = 70;          // RSI Overbought Level
+input double oversold = 30;            // RSI Oversold Level
+input int    sma_period = 50;          // SMA Period
+input double risk_percent = 0.01;      // Risk per trade (%)
+input double stop_loss_pips = 20;      // Stop Loss (pips)
+input double rr_ratio = 2.0;           // Risk-to-Reward Ratio
+input double min_volume = 10.0;        // Minimum Volume (lots)
+//+------------------------------------------------------------------+
+//| Expert initialization function                                     |
+//+------------------------------------------------------------------+
+int OnInit() {
+   return(INIT_SUCCEEDED);
+}
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                   |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+   // No indicator handles to release
+}
+//+------------------------------------------------------------------+
+//| Expert tick function                                              |
+//+------------------------------------------------------------------+
+void OnTick() {
+   // Extract data
+   double price = MarketInfo(_Symbol, MODE_BID);
+   double account_balance = AccountBalance();
+   double volume = MarketInfo(_Symbol, MODE_VOLUME);
+   double rsi = iRSI(_Symbol, PERIOD_CURRENT, rsi_period, PRICE_CLOSE, 0);
+   double sma = iMA(_Symbol, PERIOD_CURRENT, sma_period, 0, MODE_SMA, PRICE_CLOSE, 0);
+   // Volume check
+   if (volume < min_volume) return;
+   // Calculate position size
+   double pip_value = 10.0;
+   double risk_amount = account_balance * risk_percent;
+   double lot_size = NormalizeDouble(risk_amount / (stop_loss_pips * pip_value), 2);
+   // Trading logic
+   if (OrdersTotal() == 0) {
+      if (rsi < oversold && price > sma) {
+         double sl = price - stop_loss_pips * Point;
+         double tp = price + (stop_loss_pips * rr_ratio) * Point;
+         OrderSend(_Symbol, OP_BUY, lot_size, price, 3, sl, tp, "RSI Buy", 0, 0, clrGreen);
+      } else if (rsi > overbought && price < sma) {
+         double sl = price + stop_loss_pips * Point;
+         double tp = price - (stop_loss_pips * rr_ratio) * Point;
+         OrderSend(_Symbol, OP_SELL, lot_size, price, 3, sl, tp, "RSI Sell", 0, 0, clrRed);
+      }
+   }
+}
+`,
+  "MACD Divergence (Optional)": `//+------------------------------------------------------------------+
+//|                                      MACDDivergenceStrategy.mq4   |
+//|                                                     Momo Platform |
+//|------------------------------------------------------------------+
+#property copyright "Momo Platform"
+#property link      "https://momo-platform.com"
+#property version   "1.00"
+#property description "MQL4 MACD Divergence strategy (Optional). Uses MACD(12,26,9), 50 SMA, 1:2 RTR, volume check, 1% risk."
+// Input parameters
+input int    fast_ema = 12;            // MACD Fast EMA
+input int    slow_ema = 26;            // MACD Slow EMA
+input int    signal = 9;               // MACD Signal Line
+input int    sma_period = 50;          // SMA Period
+input double risk_percent = 0.01;      // Risk per trade (%)
+input double stop_loss_pips = 20;      // Stop Loss (pips)
+input double rr_ratio = 2.0;           // Risk-to-Reward Ratio
+input double min_volume = 10.0;        // Minimum Volume (lots)
+//+------------------------------------------------------------------+
+//| Expert initialization function                                     |
+//+------------------------------------------------------------------+
+int OnInit() {
+   return(INIT_SUCCEEDED);
+}
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                   |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+   // No indicator handles to release
+}
+//+------------------------------------------------------------------+
+//| Expert tick function                                              |
+//+------------------------------------------------------------------+
+void OnTick() {
+   // Extract data
+   double price = MarketInfo(_Symbol, MODE_BID);
+   double account_balance = AccountBalance();
+   double volume = MarketInfo(_Symbol, MODE_VOLUME);
+   double macd = iMACD(_Symbol, PERIOD_CURRENT, fast_ema, slow_ema, signal, PRICE_CLOSE, MODE_MAIN, 0);
+   double signal_line = iMACD(_Symbol, PERIOD_CURRENT, fast_ema, slow_ema, signal, PRICE_CLOSE, MODE_SIGNAL, 0);
+   double sma = iMA(_Symbol, PERIOD_CURRENT, sma_period, 0, MODE_SMA, PRICE_CLOSE, 0);
+   // Volume check
+   if (volume < min_volume) return;
+   // Calculate position size
+   double pip_value = 10.0;
+   double risk_amount = account_balance * risk_percent;
+   double lot_size = NormalizeDouble(risk_amount / (stop_loss_pips * pip_value), 2);
+   // Trading logic
+   if (OrdersTotal() == 0) {
+      if (macd > signal_line && price > sma) {
+         double sl = price - stop_loss_pips * Point;
+         double tp = price + (stop_loss_pips * rr_ratio) * Point;
+         OrderSend(_Symbol, OP_BUY, lot_size, price, 3, sl, tp, "MACD Buy", 0, 0, clrGreen);
+      } else if (macd < signal_line && price < sma) {
+         double sl = price + stop_loss_pips * Point;
+         double tp = price - (stop_loss_pips * rr_ratio) * Point;
+         OrderSend(_Symbol, OP_SELL, lot_size, price, 3, sl, tp, "MACD Sell", 0, 0, clrRed);
+      }
+   }
+}
+`
+},
 
-  const handleGenerateCodeWithAI = async () => {
-    if (naturalLanguagePrompt.trim() === "") {
-      toast({
-        title: "Input Required",
-        description: "Please describe your strategy in natural language.",
-        variant: "destructive",
-      })
-      return
-    }
 
-    setIsGeneratingCode(true)
-    setCompilationStatus("idle") // Reset compilation status
-    setCompilationLog("Generating code with AI...\n")
-    setBotCode("") // Clear current code
+Elixir: {
+  default: `
+defmodule TradingStrategy do
+  @moduledoc """
+  Default trading strategy based on MQL5 standards.
+  - Uses 50-period SMA for trend confirmation.
+  - Implements 1:2 risk-to-reward with SL/TP.
+  - Includes volume check for trade entry.
+  - Risks 1% of account equity per trade.
+  """
 
-    try {
-      const response = await fetch("/api/generate-bot-code", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+  def trading_strategy(data) do
+    # Input parameters
+    sma_period = 50
+    risk_percent = 0.01
+    rr_ratio = 2.0
+    min_volume = 10.0
+    stop_loss_pips = 20
+
+    # Extract data
+    price = Map.get(data, :close, 0.0)
+    account_balance = Map.get(data, :account_balance, 10_000.0)
+    volume = Map.get(data, :volume, 0.0)
+    sma = Map.get(data, :sma_50, 0.0)
+
+    # Volume check
+    if volume < min_volume do
+      {:hold, nil}
+    else
+      # Calculate position size
+      pip_value = 10.0
+      risk_amount = account_balance * risk_percent
+      lot_size = Float.round(risk_amount / (stop_loss_pips * pip_value), 2)
+
+      # Trading logic
+      cond do
+        price > sma ->
+          sl = price - stop_loss_pips * 0.0001
+          tp = price + stop_loss_pips * rr_ratio * 0.0001
+          {:buy, %{lot_size: lot_size, sl: sl, tp: tp}}
+        price < sma ->
+          sl = price + stop_loss_pips * 0.0001
+          tp = price - stop_loss_pips * rr_ratio * 0.0001
+          {:sell, %{lot_size: lot_size, sl: sl, tp: tp}}
+        true ->
+          {:hold, nil}
+      end
+    end
+  end
+end
+`,
+  "Trailing Stop Loss": `
+defmodule TradingStrategy do
+  @moduledoc """
+  Trailing Stop Loss strategy based on MQL5 standards.
+  - Uses 50-period SMA for trend confirmation.
+  - Implements trailing stop with 1:2 risk-to-reward.
+  - Includes volume check for trade entry.
+  - Risks 1% of account equity per trade.
+  """
+
+  def trading_strategy(data, current_position, entry_price, high_price_since_entry) do
+    # Input parameters
+    sma_period = 50
+    risk_percent = 0.01
+    trail_pips = 15
+    stop_loss_pips = 20
+    rr_ratio = 2.0
+    min_volume = 10.0
+
+    # Extract data
+    price = Map.get(data, :close, 0.0)
+    account_balance = Map.get(data, :account_balance, 10_000.0)
+    volume = Map.get(data, :volume, 0.0)
+    sma = Map.get(data, :sma_50, 0.0)
+
+    # Volume check
+    if volume < min_volume do
+      {:hold, nil}
+    else
+      # Calculate position size
+      pip_value = 10.0
+      risk_amount = account_balance * risk_percent
+      lot_size = Float.round(risk_amount / (stop_loss_pips * pip_value), 2)
+
+      # Trailing stop logic
+      case current_position do
+        :buy when price > high_price_since_entry ->
+          new_sl = price - trail_pips * 0.0001
+          {:update_sl, %{sl: new_sl}}
+        :sell when price < high_price_since_entry ->
+          new_sl = price + trail_pips * 0.0001
+          {:update_sl, %{sl: new_sl}}
+        _ ->
+          # Entry logic
+          if current_position == nil do
+            cond do
+              price > sma ->
+                sl = price - stop_loss_pips * 0.0001
+                tp = price + stop_loss_pips * rr_ratio * 0.0001
+                {:buy, %{lot_size: lot_size, sl: sl, tp: tp}}
+              price < sma ->
+                sl = price + stop_loss_pips * 0.0001
+                tp = price - stop_loss_pips * rr_ratio * 0.0001
+                {:sell, %{lot_size: lot_size, sl: sl, tp: tp}}
+              true ->
+                {:hold, nil}
+            end
+          else
+            {:hold, nil}
+          end
+      end
+    end
+  end
+end
+`,
+  "Risk Management (SL/TP)": `
+defmodule TradingStrategy do
+  @moduledoc """
+  Fixed SL/TP strategy based on MQL5 standards.
+  - Uses 50-period SMA for trend confirmation.
+  - Implements fixed 20-pip SL and 40-pip TP (1:2 RTR).
+  - Includes volume check for trade entry.
+  - Risks 1% of account equity per trade.
+  """
+
+  def trading_strategy(data) do
+    # Input parameters
+    sma_period = 50
+    risk_percent = 0.01
+    stop_loss_pips = 20
+    rr_ratio = 2.0
+    min_volume = 10.0
+
+    # Extract data
+    price = Map.get(data, :close, 0.0)
+    account_balance = Map.get(data, :account_balance, 10_000.0)
+    volume = Map.get(data, :volume, 0.0)
+    sma = Map.get(data, :sma_50, 0.0)
+
+    # Volume check
+    if volume < min_volume do
+      {:hold, nil}
+    else
+      # Calculate position size
+      pip_value = 10.0
+      risk_amount = account_balance * risk_percent
+      lot_size = Float.round(risk_amount / (stop_loss_pips * pip_value), 2)
+
+      # Trading logic
+      cond do
+        price > sma ->
+          sl = price - stop_loss_pips * 0.0001
+          tp = price + stop_loss_pips * rr_ratio * 0.0001
+          {:buy, %{lot_size: lot_size, sl: sl, tp: tp}}
+        price < sma ->
+          sl = price + stop_loss_pips * 0.0001
+          tp = price - stop_loss_pips * rr_ratio * 0.0001
+          {:sell, %{lot_size: lot_size, sl: sl, tp: tp}}
+        true ->
+          {:hold, nil}
+      end
+    end
+  end
+end
+`,
+  "RSI Crossover (Mandatory)": `
+defmodule TradingStrategy do
+  @moduledoc """
+  RSI Crossover strategy based on MQL5 standards (Mandatory).
+  - Uses RSI (14) with overbought (70) and oversold (30) levels.
+  - Confirms trend with 50-period SMA.
+  - Implements 1:2 risk-to-reward with SL/TP.
+  - Includes volume check for trade entry.
+  - Risks 1% of account equity per trade.
+  """
+
+  def trading_strategy(data) do
+    # Input parameters
+    rsi_period = 14
+    overbought = 70
+    oversold = 30
+    sma_period = 50
+    risk_percent = 0.01
+    stop_loss_pips = 20
+    rr_ratio = 2.0
+    min_volume = 10.0
+
+    # Extract data
+    price = Map.get(data, :close, 0.0)
+    rsi = Map.get(data, :rsi, 0.0)
+    account_balance = Map.get(data, :account_balance, 10_000.0)
+    volume = Map.get(data, :volume, 0.0)
+    sma = Map.get(data, :sma_50, 0.0)
+
+    # Volume check
+    if volume < min_volume do
+      {:hold, nil}
+    else
+      # Calculate position size
+      pip_value = 10.0
+      risk_amount = account_balance * risk_percent
+      lot_size = Float.round(risk_amount / (stop_loss_pips * pip_value), 2)
+
+      # Trading logic
+      cond do
+        rsi < oversold and price > sma ->
+          sl = price - stop_loss_pips * 0.0001
+          tp = price + stop_loss_pips * rr_ratio * 0.0001
+          {:buy, %{lot_size: lot_size, sl: sl, tp: tp}}
+        rsi > overbought and price < sma ->
+          sl = price + stop_loss_pips * 0.0001
+          tp = price - stop_loss_pips * rr_ratio * 0.0001
+          {:sell, %{lot_size: lot_size, sl: sl, tp: tp}}
+        true ->
+          {:hold, nil}
+      end
+    end
+  end
+end
+`,
+  "MACD Divergence (Optional)": `
+defmodule TradingStrategy do
+  @moduledoc """
+  MACD Divergence strategy based on MQL5 standards (Optional).
+  - Uses MACD (12,26,9) for divergence detection.
+  - Confirms trend with 50-period SMA.
+  - Implements 1:2 risk-to-reward with SL/TP.
+  - Includes volume check for trade entry.
+  - Risks 1% of account equity per trade.
+  """
+
+  def trading_strategy(data) do
+    # Input parameters
+    fast_ema = 12
+    slow_ema = 26
+    signal = 9
+    sma_period = 50
+    risk_percent = 0.01
+    stop_loss_pips = 20
+    rr_ratio = 2.0
+    min_volume = 10.0
+
+    # Extract data
+    price = Map.get(data, :close, 0.0)
+    macd = Map.get(data, :macd, 0.0)
+    signal_line = Map.get(data, :signal_line, 0.0)
+    account_balance = Map.get(data, :account_balance, 10_000.0)
+    volume = Map.get(data, :volume, 0.0)
+    sma = Map.get(data, :sma_50, 0.0)
+
+    # Volume check
+    if volume < min_volume do
+      {:hold, nil}
+    else
+      # Calculate position size
+      pip_value = 10.0
+      risk_amount = account_balance * risk_percent
+      lot_size = Float.round(risk_amount / (stop_loss_pips * pip_value), 2)
+
+      # Trading logic
+      cond do
+        macd > signal_line and price > sma ->
+          sl = price - stop_loss_pips * 0.0001
+          tp = price + stop_loss_pips * rr_ratio * 0.0001
+          {:buy, %{lot_size: lot_size, sl: sl, tp: tp}}
+        macd < signal_line and price < sma ->
+          sl = price + stop_loss_pips * 0.0001
+          tp = price - stop_loss_pips * rr_ratio * 0.0001
+          {:sell, %{lot_size: lot_size, sl: sl, tp: tp}}
+        true ->
+          {:hold, nil}
+      end
+    end
+  end
+end
+`
+},
+
+
+DBots: {
+  default: `
+{
+  "strategy": "DefaultStrategy",
+  "description": "Default trading strategy based on MQL5 standards. Uses 50 SMA for trend confirmation, 1:2 RTR with SL/TP, volume check, 1% risk per trade.",
+  "parameters": {
+    "sma_period": 50,
+    "risk_percent": 0.01,
+    "stop_loss_pips": 20,
+    "rr_ratio": 2.0,
+    "min_volume": 10.0
+  },
+  "logic": {
+    "on_tick": {
+      "conditions": [
+        {
+          "if": "volume < min_volume",
+          "then": {
+            "action": "HOLD",
+            "params": null
+          }
         },
-        body: JSON.stringify({ language: botLanguage, prompt: naturalLanguagePrompt }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        {
+          "if": "price > sma_50",
+          "then": {
+            "action": "BUY",
+            "params": {
+              "lot_size": "account_balance * risk_percent / (stop_loss_pips * 10.0)",
+              "sl": "price - stop_loss_pips * 0.0001",
+              "tp": "price + (stop_loss_pips * rr_ratio) * 0.0001"
+            }
+          }
+        },
+        {
+          "if": "price < sma_50",
+          "then": {
+            "action": "SELL",
+            "params": {
+              "lot_size": "account_balance * risk_percent / (stop_loss_pips * 10.0)",
+              "sl": "price + stop_loss_pips * 0.0001",
+              "tp": "price - (stop_loss_pips * rr_ratio) * 0.0001"
+            }
+          }
+        }
+      ],
+      "default": {
+        "action": "HOLD",
+        "params": null
       }
-
-      const data = await response.json()
-      setBotCode(data.code)
-      setCompilationLog((prev) => prev + "AI code generation complete. Review and compile.\n")
-      toast({
-        title: "Code Generated!",
-        description: "AI has generated code for your strategy.",
-        variant: "default",
-      })
-    } catch (error) {
-      console.error("Error generating code with AI:", error)
-      setCompilationLog((prev) => prev + "Failed to generate code with AI. Please try again.\n")
-      toast({
-        title: "AI Generation Failed",
-        description: "Could not generate code. Please try again or refine your prompt.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsGeneratingCode(false)
     }
   }
-
-  const handleNext = () => {
-    if (step < totalSteps) {
-      setStep(step + 1)
-    } else {
-      // Final step: "create" bot and redirect
-      console.log("Bot Created:", { botName, botLanguage, botDescription, botCode })
-      toast({
-        title: "Bot Created!",
-        description: `${botName} has been successfully created.`,
-        variant: "default",
-      })
-      router.push("/bots") // Redirect to bots list
+}
+`,
+  "Trailing Stop Loss": `
+{
+  "strategy": "TrailingStopLossStrategy",
+  "description": "Trailing Stop Loss strategy based on MQL5 standards. Uses 50 SMA, trailing stop, 1:2 RTR, volume check, 1% risk.",
+  "parameters": {
+    "sma_period": 50,
+    "risk_percent": 0.01,
+    "trail_pips": 15,
+    "stop_loss_pips": 20,
+    "rr_ratio": 2.0,
+    "min_volume": 10.0
+  },
+  "logic": {
+    "on_tick": {
+      "conditions": [
+        {
+          "if": "volume < min_volume",
+          "then": {
+            "action": "HOLD",
+            "params": null
+          }
+        },
+        {
+          "if": "position == 'BUY' && price > high_price_since_entry",
+          "then": {
+            "action": "UPDATE_SL",
+            "params": {
+              "sl": "price - trail_pips * 0.0001"
+            }
+          }
+        },
+        {
+          "if": "position == 'SELL' && price < high_price_since_entry",
+          "then": {
+            "action": "UPDATE_SL",
+            "params": {
+              "sl": "price + trail_pips * 0.0001"
+            }
+          }
+        },
+        {
+          "if": "position == null && price > sma_50",
+          "then": {
+            "action": "BUY",
+            "params": {
+              "lot_size": "account_balance * risk_percent / (stop_loss_pips * 10.0)",
+              "sl": "price - stop_loss_pips * 0.0001",
+              "tp": "price + (stop_loss_pips * rr_ratio) * 0.0001"
+            }
+          }
+        },
+        {
+          "if": "position == null && price < sma_50",
+          "then": {
+            "action": "SELL",
+            "params": {
+              "lot_size": "account_balance * risk_percent / (stop_loss_pips * 10.0)",
+              "sl": "price + stop_loss_pips * 0.0001",
+              "tp": "price - (stop_loss_pips * rr_ratio) * 0.0001"
+            }
+          }
+        }
+      ],
+      "default": {
+        "action": "HOLD",
+        "params": null
+      }
     }
   }
-
-  const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1)
+}
+`,
+  "Risk Management (SL/TP)": `
+{
+  "strategy": "RiskManagementStrategy",
+  "description": "Fixed SL/TP strategy based on MQL5 standards. Uses 50 SMA, 20-pip SL, 40-pip TP (1:2 RTR), volume check, 1% risk.",
+  "parameters": {
+    "sma_period": 50,
+    "risk_percent": 0.01,
+    "stop_loss_pips": 20,
+    "rr_ratio": 2.0,
+    "min_volume": 10.0
+  },
+  "logic": {
+    "on_tick": {
+      "conditions": [
+        {
+          "if": "volume < min_volume",
+          "then": {
+            "action": "HOLD",
+            "params": null
+          }
+        },
+        {
+          "if": "price > sma_50",
+          "then": {
+            "action": "BUY",
+            "params": {
+              "lot_size": "account_balance * risk_percent / (stop_loss_pips * 10.0)",
+              "sl": "price - stop_loss_pips * 0.0001",
+              "tp": "price + (stop_loss_pips * rr_ratio) * 0.0001"
+            }
+          }
+        },
+        {
+          "if": "price < sma_50",
+          "then": {
+            "action": "SELL",
+            "params": {
+              "lot_size": "account_balance * risk_percent / (stop_loss_pips * 10.0)",
+              "sl": "price + stop_loss_pips * 0.0001",
+              "tp": "price - (stop_loss_pips * rr_ratio) * 0.0001"
+            }
+          }
+        }
+      ],
+      "default": {
+        "action": "HOLD",
+        "params": null
+      }
     }
   }
-
-  const handleDownloadBot = () => {
-    const element = document.createElement("a")
-    const file = new Blob([botCode], { type: "text/plain" })
-    element.href = URL.createObjectURL(file)
-    const fileExtension =
-      botLanguage.toLowerCase() === "python"
-        ? "py"
-        : botLanguage.toLowerCase() === "javascript"
-          ? "js"
-          : botLanguage.toLowerCase() === "c++"
-            ? "cpp"
-            : botLanguage.toLowerCase() === "rust"
-              ? "rs"
-              : botLanguage.toLowerCase() === "pinescript"
-                ? "pine"
-                : botLanguage.toLowerCase() === "mql5"
-                  ? "mq5"
-                  : botLanguage.toLowerCase() === "mql4"
-                    ? "mq4"
-                    : botLanguage.toLowerCase() === "elixir"
-                      ? "ex"
-                      : "json" // For DBots
-    element.download = `${botName.replace(/\s/g, "_")}.${fileExtension}`
-    document.body.appendChild(element) // Required for Firefox
-    element.click()
-    document.body.removeChild(element) // Clean up
-    toast({
-      title: "Bot Downloaded!",
-      description: `${botName} has been downloaded.`,
-      variant: "default",
-    })
+}
+`,
+  "RSI Crossover (Mandatory)": `
+{
+  "strategy": "RSICrossoverStrategy",
+  "description": "RSI Crossover strategy based on MQL5 standards (Mandatory). Uses RSI(14), 50 SMA, 1:2 RTR, volume check, 1% risk.",
+  "parameters": {
+    "rsi_period": 14,
+    "overbought": 70,
+    "oversold": 30,
+    "sma_period": 50,
+    "risk_percent": 0.01,
+    "stop_loss_pips": 20,
+    "rr_ratio": 2.0,
+    "min_volume": 10.0
+  },
+  "logic": {
+    "on_tick": {
+      "conditions": [
+        {
+          "if": "volume < min_volume",
+          "then": {
+            "action": "HOLD",
+            "params": null
+          }
+        },
+        {
+          "if": "rsi < oversold && price > sma_50",
+          "then": {
+            "action": "BUY",
+            "params": {
+              "lot_size": "account_balance * risk_percent / (stop_loss_pips * 10.0)",
+              "sl": "price - stop_loss_pips * 0.0001",
+              "tp": "price + (stop_loss_pips * rr_ratio) * 0.0001"
+            }
+          }
+        },
+        {
+          "if": "rsi > overbought && price < sma_50",
+          "then": {
+            "action": "SELL",
+            "params": {
+              "lot_size": "account_balance * risk_percent / (stop_loss_pips * 10.0)",
+              "sl": "price + stop_loss_pips * 0.0001",
+              "tp": "price - (stop_loss_pips * rr_ratio) * 0.0001"
+            }
+          }
+        }
+      ],
+      "default": {
+        "action": "HOLD",
+        "params": null
+      }
+    }
   }
-
-  const handleViewCode = () => {
-    setIsCodeModalOpen(true)
+}
+`,
+  "MACD Divergence (Optional)": `
+{
+  "strategy": "MACDDivergenceStrategy",
+  "description": "MACD Divergence strategy based on MQL5 standards (Optional). Uses MACD(12,26,9), 50 SMA, 1:2 RTR, volume check, 1% risk.",
+  "parameters": {
+    "fast_ema": 12,
+    "slow_ema": 26,
+    "signal": 9,
+    "sma_period": 50,
+    "risk_percent": 0.01,
+    "stop_loss_pips": 20,
+    "rr_ratio": 2.0,
+    "min_volume": 10.0
+  },
+  "logic": {
+    "on_tick": {
+      "conditions": [
+        {
+          "if": "volume < min_volume",
+          "then": {
+            "action": "HOLD",
+            "params": null
+          }
+        },
+        {
+          "if": "macd > signal_line && price > sma_50",
+          "then": {
+            "action": "BUY",
+            "params": {
+              "lot_size": "account_balance * risk_percent / (stop_loss_pips * 10.0)",
+              "sl": "price - stop_loss_pips * 0.0001",
+              "tp": "price + (stop_loss_pips * rr_ratio) * 0.0001"
+            }
+          }
+        },
+        {
+          "if": "macd < signal_line && price < sma_50",
+          "then": {
+            "action": "SELL",
+            "params": {
+              "lot_size": "account_balance * risk_percent / (stop_loss_pips * 10.0)",
+              "sl": "price + stop_loss_pips * 0.0001",
+              "tp": "price - (stop_loss_pips * rr_ratio) * 0.0001"
+            }
+          }
+        }
+      ],
+      "default": {
+        "action": "HOLD",
+        "params": null
+      }
+    }
   }
+}
+`
+}}
 
-  return (
-    <>
-      {isGeneratingCode && <LoadingOverlay />}
-      <Card className="shadow-lg border-spotify-grey bg-spotify-dark-grey rounded-lg animate-fade-in-up">
-        <CardHeader className="pb-4 border-b border-spotify-grey">
-          <CardTitle className="text-xl font-semibold text-spotify-text-primary">
-            {step === 1 && "Bot Details"}
-            {step === 2 && "Write Your Code"}
-            {step === 3 && "Review & Finish"}
-          </CardTitle>
-          <CardDescription className="text-sm text-spotify-text-secondary">
-            {step === 1 && "Provide basic information about your new trading bot."}
-            {step === 2 && "Enter or modify the source code for your bot. Compile to check for errors."}
-            {step === 3 && "Review your bot's details and finalize creation."}
-          </CardDescription>
-          <Progress
-            value={progress}
-            className="w-full mt-4 h-2 bg-spotify-grey [&::-webkit-progress-bar]:bg-spotify-grey [&::-webkit-progress-value]:bg-spotify-green [&::-moz-progress-bar]:bg-spotify-green"
-          />
-        </CardHeader>
-        <CardContent className="p-6">
-          {step === 1 && (
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="bot-name" className="text-sm text-spotify-text-primary">
-                  Bot Name
-                </Label>
-                <Input
-                  id="bot-name"
-                  type="text"
-                  value={botName}
-                  onChange={(e) => setBotName(e.target.value)}
-                  placeholder="e.g., TrendFollower v3"
-                  className="text-sm border-spotify-grey focus:border-spotify-green bg-spotify-black text-spotify-text-primary rounded-md"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="bot-language" className="text-sm text-spotify-text-primary">
-                  Programming Language
-                </Label>
-                <Select value={botLanguage} onValueChange={handleLanguageChange}>
-                  <SelectTrigger
-                    id="bot-language"
-                    className="text-sm border-spotify-grey focus:border-spotify-green bg-spotify-black text-spotify-text-primary rounded-md"
-                  >
-                    <SelectValue placeholder="Select language" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-spotify-dark-grey text-spotify-text-primary border-spotify-grey rounded-md">
-                    <SelectItem value="Python">Python</SelectItem>
-                    <SelectItem value="JavaScript">JavaScript</SelectItem>
-                    <SelectItem value="C++">C++</SelectItem>
-                    <SelectItem value="Rust">Rust</SelectItem>
-                    <SelectItem value="PineScript">Pine Script</SelectItem>
-                    <SelectItem value="MQL5">MQL5</SelectItem>
-                    <SelectItem value="MQL4">MQL4</SelectItem>
-                    <SelectItem value="Elixir">Elixir</SelectItem>
-                    <SelectItem value="DBots">DBots (JSON)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="bot-description" className="text-sm text-spotify-text-primary">
-                  Description (Optional)
-                </Label>
-                <Textarea
-                  id="bot-description"
-                  value={botDescription}
-                  onChange={(e) => setBotDescription(e.target.value)}
-                  placeholder="A brief description of your bot's strategy."
-                  className="text-sm border-spotify-grey focus:border-spotify-green bg-spotify-black text-spotify-text-primary rounded-md"
-                />
-              </div>
+return (
+  <div className="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
+    <Card className="shadow-lg">
+      <CardHeader>
+        <CardTitle className="text-2xl sm:text-3xl">Create Your Trading Bot</CardTitle>
+        <CardDescription className="text-sm sm:text-base">
+          Step {step} of {totalSteps}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <Progress value={progress} className="mb-6" aria-label="Progress through form steps" />
+        {step === 1 && (
+          <div className="space-y-6">
+            <div>
+              <Label htmlFor="botName" className="text-sm font-medium">
+                Bot Name
+              </Label>
+              <Input
+                id="botName"
+                value={botName}
+                onChange={(e) => {
+                  setBotName(e.target.value);
+                  if (e.target.value.trim()) setError((prev) => ({ ...prev, botName: "" }));
+                }}
+                placeholder="Enter bot name"
+                aria-invalid={!!error.botName}
+                aria-describedby="botName-error"
+                className={error.botName ? "border-red-500" : ""}
+              />
+              {error.botName && (
+                <p id="botName-error" className="text-red-500 text-xs mt-1">
+                  {error.botName}
+                </p>
+              )}
             </div>
-          )}
-
-          {step === 2 && (
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="strategy-template" className="text-sm text-spotify-text-primary">
-                  Strategy Template
-                </Label>
-                <Select value={selectedTemplate} onValueChange={handleTemplateChange}>
-                  <SelectTrigger
-                    id="strategy-template"
-                    className="text-sm border-spotify-grey focus:border-spotify-green bg-spotify-black text-spotify-text-primary rounded-md"
-                  >
-                    <SelectValue placeholder="Select a template" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-spotify-dark-grey text-spotify-text-primary border-spotify-grey rounded-md">
-                    <div className="px-2 py-1 text-xs font-semibold text-spotify-text-secondary">
-                      Mandatory for Production Readiness
-                    </div>
-                    {strategyTemplates.Mandatory.map((template) => (
-                      <SelectItem key={template.value} value={template.value}>
-                        {template.label}
+            <div>
+              <Label htmlFor="botLanguage" className="text-sm font-medium">
+                Programming Language
+              </Label>
+              <Select value={botLanguage} onValueChange={setBotLanguage}>
+                <SelectTrigger aria-label="Select programming language">
+                  <SelectValue placeholder="Select language" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["Python", "JavaScript", "C++", "Rust", "PineScript", "MQL5", "MQL4", "Elixir", "DBots"].map(
+                    (lang) => (
+                      <SelectItem key={lang} value={lang}>
+                        {lang}
                       </SelectItem>
-                    ))}
-                    <div className="px-2 py-1 text-xs font-semibold text-spotify-text-secondary mt-2">
-                      Optional Strategies
-                    </div>
-                    {strategyTemplates.Optional.map((template) => (
-                      <SelectItem key={template.value} value={template.value}>
-                        {template.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="indicators" className="text-sm text-spotify-text-primary">
-                  Add Chart Tools & Indicators
-                </Label>
-                <Select onValueChange={handleIndicatorChange} value="">
-                  {" "}
-                  {/* Value is empty to allow re-selection */}
-                  <SelectTrigger
-                    id="indicators"
-                    className="text-sm border-spotify-grey focus:border-spotify-green bg-spotify-black text-spotify-text-primary rounded-md"
-                  >
-                    <SelectValue placeholder="Select indicators" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-spotify-dark-grey text-spotify-text-primary border-spotify-grey rounded-md">
-                    {indicatorOptions.map((indicator) => (
-                      <SelectItem key={indicator.value} value={indicator.value}>
-                        {indicator.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedIndicators.map((indicator) => (
-                    <Badge key={indicator} variant="secondary" className="bg-spotify-grey text-spotify-text-primary">
-                      {indicator}
-                      <X
-                        className="ml-1 h-3 w-3 cursor-pointer"
-                        onClick={() => setSelectedIndicators(selectedIndicators.filter((i) => i !== indicator))}
-                      />
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="natural-language-prompt" className="text-sm text-spotify-text-primary">
-                  Or, describe your strategy in natural language:
-                </Label>
-                <Textarea
-                  id="natural-language-prompt"
-                  value={naturalLanguagePrompt}
-                  onChange={(e) => setNaturalLanguagePrompt(e.target.value)}
-                  placeholder="e.g., 'Buy when RSI crosses below 30 and sell when it crosses above 70, ensuring a 2:1 risk-to-reward and high volume.'"
-                  className="text-sm border-spotify-grey focus:border-spotify-green bg-spotify-black text-spotify-text-primary rounded-md"
-                  rows={3}
-                  disabled={isGeneratingCode}
-                />
-                <Button
-                  onClick={handleGenerateCodeWithAI}
-                  disabled={isGeneratingCode || naturalLanguagePrompt.trim() === ""}
-                  className="w-full bg-spotify-green text-spotify-black hover:bg-spotify-green/90 transition-all duration-300 hover:scale-105 rounded-full"
-                >
-                  {isGeneratingCode ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" /> Generate Code with AI
-                    </>
+                    )
                   )}
-                </Button>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="bot-code" className="text-sm text-spotify-text-primary">
-                  Bot Source Code ({botLanguage})
-                </Label>
-                <Textarea
-                  id="bot-code"
-                  value={botCode}
-                  onChange={(e) => setBotCode(e.target.value)}
-                  placeholder={`Write your ${botLanguage} trading logic here...`}
-                  className="h-96 font-mono text-sm bg-spotify-black border-spotify-grey text-spotify-text-primary rounded-md"
-                />
-              </div>
-
-              <div className="mt-4">
-                <h3 className="text-sm font-semibold text-spotify-text-primary flex items-center mb-2">
-                  Live Chart Preview (Conceptual)
-                </h3>
-                <InteractiveChartPlaceholder />
-                <p className="text-xs text-spotify-text-secondary mt-2">
-                  This chart would dynamically update as you edit code or select indicators, visualizing their impact.
-                </p>
-              </div>
-
-              <Button
-                onClick={handleCompileBot}
-                disabled={compilationStatus === "compiling" || botCode.trim() === ""}
-                className="w-full bg-spotify-green text-spotify-black hover:bg-spotify-green/90 transition-all duration-300 hover:scale-105 rounded-full"
-              >
-                {compilationStatus === "compiling" ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Compiling...
-                  </>
-                ) : (
-                  <>
-                    <Code className="mr-2 h-4 w-4" /> Compile & Test
-                  </>
-                )}
-              </Button>
-
-              {compilationStatus !== "idle" && (
-                <div className="mt-4">
-                  <h3 className="text-sm font-semibold text-spotify-text-primary flex items-center mb-2">
-                    {compilationStatus === "success" && <CheckCircle className="mr-2 h-4 w-4 text-spotify-green" />}
-                    {compilationStatus === "error" && <X className="mr-2 h-4 w-4 text-destructive-foreground" />}
-                    Compilation Log:
-                  </h3>
-                  <pre className="bg-spotify-black p-3 rounded-md text-xs font-mono overflow-auto max-h-40 text-spotify-text-secondary border border-spotify-grey">
-                    {compilationLog}
-                  </pre>
-                </div>
-              )}
+                </SelectContent>
+              </Select>
             </div>
-          )}
-
-          {step === 3 && (
-            <div className="grid gap-4">
-              <h3 className="text-lg font-semibold text-spotify-text-primary">Bot Summary</h3>
-              <div className="space-y-2 text-sm text-spotify-text-primary">
-                <p>
-                  <span className="font-medium">Name:</span> {botName || "N/A"}
-                </p>
-                <p>
-                  <span className="font-medium">Language:</span> {botLanguage}
-                </p>
-                <p>
-                  <span className="font-medium">Description:</span> {botDescription || "No description provided."}
-                </p>
-                <p className="text-spotify-text-secondary mt-4">
-                  *Note: For production readiness, ensure your bot adheres to the mandatory RSI Crossover and Risk
-                  Management (SL/TP) rules, including volume checks and a 50 MA. These are critical for passing the &gt;
-                  40% accuracy threshold.
-                </p>
-              </div>
-              <div className="flex space-x-2 mt-4">
-                <Button
-                  variant="outline"
-                  className="border-spotify-grey text-spotify-text-primary hover:bg-spotify-grey/50 bg-transparent transition-all duration-200 hover:scale-105 rounded-full"
-                  onClick={handleViewCode}
-                >
-                  <Code className="mr-2 h-4 w-4" /> View Source Code
-                </Button>
-                <Button
-                  className="bg-spotify-green text-spotify-black hover:bg-spotify-green/90 transition-all duration-300 hover:scale-105 rounded-full"
-                  onClick={handleDownloadBot}
-                >
-                  <Download className="mr-2 h-4 w-4" /> Download Bot
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-between mt-6">
-            <Button
-              variant="outline"
-              onClick={handleBack}
-              disabled={step === 1}
-              className="border-spotify-grey text-spotify-text-primary hover:bg-spotify-grey/50 bg-transparent transition-all duration-200 hover:scale-105 rounded-full"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-            <Button
-              onClick={handleNext}
-              disabled={step === 2 && compilationStatus !== "success"}
-              className="bg-spotify-green text-spotify-black hover:bg-spotify-green/90 transition-all duration-300 hover:scale-105 rounded-full"
-            >
-              {step < totalSteps ? (
-                <>
-                  Next <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="mr-2 h-4 w-4" /> Finish
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-
-        <Dialog open={isCodeModalOpen} onOpenChange={setIsCodeModalOpen}>
-          <DialogContent className="sm:max-w-[800px] bg-spotify-dark-grey text-spotify-text-primary border-spotify-grey rounded-lg">
-            <DialogHeader>
-              <DialogTitle className="text-spotify-green">Bot Source Code</DialogTitle>
-              <DialogDescription className="text-spotify-text-secondary">
-                This is the code for your new bot.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div>
+              <Label htmlFor="botDescription" className="text-sm font-medium">
+                Description
+              </Label>
               <Textarea
-                readOnly
-                value={botCode}
-                className="h-96 font-mono text-sm bg-spotify-black border-spotify-grey text-spotify-text-primary rounded-md"
+                id="botDescription"
+                value={botDescription}
+                onChange={(e) => {
+                  setBotDescription(e.target.value);
+                  if (e.target.value.trim()) setError((prev) => ({ ...prev, botDescription: "" }));
+                }}
+                placeholder="Describe your bot's strategy"
+                aria-invalid={!!error.botDescription}
+                aria-describedby="botDescription-error"
+                className={error.botDescription ? "border-red-500" : ""}
+              />
+              {error.botDescription && (
+                <p id="botDescription-error" className="text-red-500 text-xs mt-1">
+                  {error.botDescription}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+        {step === 2 && (
+          <div className="space-y-6">
+            <div>
+              <Label htmlFor="template" className="text-sm font-medium">
+                Strategy Template
+              </Label>
+              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <SelectTrigger aria-label="Select strategy template">
+                  <SelectValue placeholder="Select template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[
+                    "default",
+                    "Trailing Stop Loss",
+                    "Risk Management (SL/TP)",
+                    "RSI Crossover (Mandatory)",
+                    "MACD Divergence (Optional)",
+                  ].map((template) => (
+                    <SelectItem key={template} value={template}>
+                      {template}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="timeframe" className="text-sm font-medium">
+                Timeframe
+              </Label>
+              <Select value={timeframe} onValueChange={setTimeframe}>
+                <SelectTrigger aria-label="Select timeframe">
+                  <SelectValue placeholder="Select timeframe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["M1", "M5", "M15", "M30", "H1", "H4", "D1"].map((tf) => (
+                    <SelectItem key={tf} value={tf}>
+                      {tf === "M1"
+                        ? "1 Minute"
+                        : tf === "M5"
+                        ? "5 Minutes"
+                        : tf === "M15"
+                        ? "15 Minutes"
+                        : tf === "M30"
+                        ? "30 Minutes"
+                        : tf === "H1"
+                        ? "1 Hour"
+                        : tf === "H4"
+                        ? "4 Hours"
+                        : "Daily"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Technical Indicators</Label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {["SMA", "RSI", "MACD", "Bollinger Bands"].map((indicator) => (
+                  <Badge
+                    key={indicator}
+                    variant={selectedIndicators.includes(indicator) ? "default" : "outline"}
+                    onClick={() =>
+                      setSelectedIndicators((prev) =>
+                        prev.includes(indicator)
+                          ? prev.filter((i) => i !== indicator)
+                          : [...prev, indicator]
+                      )
+                    }
+                    className="cursor-pointer text-sm px-3 py-1"
+                    aria-pressed={selectedIndicators.includes(indicator)}
+                  >
+                    {indicator}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Market Data Preview</Label>
+              <ChartContainer
+                config={{
+                  close: { label: "Close Price", color: "hsl(var(--chart-1))" },
+                }}
+                className="h-[200px] w-full mt-2"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={marketData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="time" />
+                    <YAxis />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Line type="monotone" dataKey="close" stroke="var(--color-close)" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </div>
+          </div>
+        )}
+        {step === 3 && (
+          <div className="space-y-6">
+            <div>
+              <Label htmlFor="botCode" className="text-sm font-medium">
+                Bot Code
+              </Label>
+              <CodeHighlighter
+                language={botLanguage.toLowerCase()}
+                value={botCode || defaultCodeTemplates[botLanguage][selectedTemplate]}
+                onChange={(value) => setBotCode(value)}
+                className="font-mono h-64 w-full rounded-md border p-2"
+                aria-label="Edit bot code"
               />
             </div>
-          </DialogContent>
-        </Dialog>
-      </Card>
-    </>
-  )
+            <Button onClick={() => setIsCodeModalOpen(true)} variant="secondary">
+              <Code className="mr-2 h-4 w-4" /> View Code in Modal
+            </Button>
+          </div>
+        )}
+        <div className="flex justify-between mt-8">
+          <Button
+            variant="outline"
+            onClick={() => setStep((prev) => Math.max(1, prev - 1))}
+            disabled={step === 1}
+            aria-label="Go to previous step"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Previous
+          </Button>
+          <Button
+            onClick={() => {
+              if (step === 1) {
+                let hasError = false;
+                if (!botName.trim()) {
+                  setError((prev) => ({ ...prev, botName: "Bot name is required" }));
+                  hasError = true;
+                }
+                if (!botDescription.trim()) {
+                  setError((prev) => ({ ...prev, botDescription: "Description is required" }));
+                  hasError = true;
+                }
+                if (hasError) {
+                  toast({
+                    title: "Validation Error",
+                    description: "Please fill in all required fields.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+              }
+              if (step < totalSteps) {
+                setStep((prev) => prev + 1);
+              } else {
+                toast({
+                  title: "Bot Created",
+                  description: "Your trading bot has been successfully created!",
+                });
+                router.push("/bots");
+              }
+            }}
+            disabled={step === 1 && (!botName.trim() || !botDescription.trim())}
+            aria-label={step === totalSteps ? "Finish creating bot" : "Go to next step"}
+          >
+            {step === totalSteps ? (
+              <>
+                <CheckCircle className="mr-2 h-4 w-4" /> Finish
+              </>
+            ) : (
+              <>
+                Next <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+    <Dialog open={isCodeModalOpen} onOpenChange={setIsCodeModalOpen}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Bot Code</DialogTitle>
+          <DialogDescription>Review and edit your bot's code.</DialogDescription>
+        </DialogHeader>
+        <CodeHighlighter
+          language={botLanguage.toLowerCase()}
+          value={botCode || defaultCodeTemplates[botLanguage][selectedTemplate]}
+          onChange={(value) => setBotCode(value)}
+          className="font-mono h-[500px] w-full rounded-md border p-2"
+          aria-label="Edit bot code in modal"
+        />
+      </DialogContent>
+    </Dialog>
+  </div>
+);
 }
+
+

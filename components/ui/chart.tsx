@@ -3,6 +3,7 @@
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
+
 import { cn } from "@/lib/utils"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
@@ -106,12 +107,13 @@ const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
     React.ComponentProps<"div"> & {
-      hideLabel?: boolean
-      hideIndicator?: boolean
-      indicator?: "line" | "dot" | "dashed"
-      nameKey?: string
-      labelKey?: string
-    }
+          hideLabel?: boolean
+          hideIndicator?: boolean
+          indicator?: "line" | "dot" | "dashed"
+          nameKey?: string
+          labelKey?: string
+          payload?: any[]
+        }
 >(
   (
     {
@@ -355,4 +357,5 @@ export {
   ChartLegend,
   ChartLegendContent,
   ChartStyle,
+  useChart,
 }

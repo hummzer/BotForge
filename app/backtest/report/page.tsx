@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/use-toast"
 export default function BacktestReportPage() {
   const { toast } = useToast()
 
-  // Mock Data for Charts and Stats
   const equityData = [
     { name: "Day 1", equity: 10000 },
     { name: "Day 2", equity: 10050 },
@@ -61,7 +60,7 @@ export default function BacktestReportPage() {
     { session: "Sydney", profit: 150 },
   ]
 
-  const profitFactor = 1.85 // Example value
+  const profitFactor = 1.85
   const totalProfit = equityData[equityData.length - 1].equity - equityData[0].equity
   const winningDays = 7
   const losingDays = 3
@@ -87,7 +86,6 @@ export default function BacktestReportPage() {
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Equity Curve */}
           <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold text-spotify-text-primary">Equity Curve</CardTitle>
@@ -118,7 +116,6 @@ export default function BacktestReportPage() {
             </CardContent>
           </Card>
 
-          {/* Trade Distribution */}
           <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold text-spotify-text-primary">Trade Distribution</CardTitle>
@@ -163,7 +160,6 @@ export default function BacktestReportPage() {
             </CardContent>
           </Card>
 
-          {/* Profit Per Trade Histogram */}
           <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold text-spotify-text-primary">
@@ -196,7 +192,6 @@ export default function BacktestReportPage() {
             </CardContent>
           </Card>
 
-          {/* Key Stats */}
           <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold text-spotify-text-primary">Key Performance Stats</CardTitle>
@@ -229,7 +224,6 @@ export default function BacktestReportPage() {
             </CardContent>
           </Card>
 
-          {/* Daily Performance */}
           <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold text-spotify-text-primary">Daily Performance</CardTitle>
@@ -260,7 +254,6 @@ export default function BacktestReportPage() {
             </CardContent>
           </Card>
 
-          {/* Hourly Performance */}
           <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold text-spotify-text-primary">Hourly Performance</CardTitle>
@@ -291,7 +284,6 @@ export default function BacktestReportPage() {
             </CardContent>
           </Card>
 
-          {/* Market Sessions Profit */}
           <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold text-spotify-text-primary">
@@ -324,7 +316,6 @@ export default function BacktestReportPage() {
             </CardContent>
           </Card>
 
-          {/* Suggested Improvements */}
           <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg col-span-full">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold text-spotify-text-primary flex items-center">

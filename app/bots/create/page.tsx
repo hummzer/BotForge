@@ -28,4 +28,6 @@ export default function CreateBotPage() {
       </footer>
     </div>
   )
+
 }
+
