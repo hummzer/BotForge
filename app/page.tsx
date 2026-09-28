@@ -3,6 +3,7 @@ import { FeaturesSection } from "@/components/features-section"
 import { HowItWorksSection } from "@/components/how-it-works-section"
 import { WhyChooseUsSection } from "@/components/why-choose-us-section"
 import { CallToActionSection } from "@/components/call-to-action-section"
+import { NewsPanel } from "@/components/news-panel"
 
 export default function HomePage() {
   return (
