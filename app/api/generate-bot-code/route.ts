@@ -6,7 +6,7 @@ export const maxDuration = 30
 export async function POST(req: Request) {
   const { language, prompt } = await req.json()
 
-  const systemPrompt = `You are an expert trading bot developer for the Momo platform.
+  const systemPrompt = `You are an expert trading bot developer for the BotForge platform.
   Your task is to generate trading bot code in ${language} based on the user's natural language prompt.
   
   Crucial Requirements:
