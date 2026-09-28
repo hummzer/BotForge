@@ -55,6 +55,27 @@ export function BotCreationForm() {
 
   const totalSteps = 3
   const progress = (step / totalSteps) * 100
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false)
+
+  const generateWithAI = async () => {
+    setIsGeneratingCode(true)
+    try {
+      const response = await fetch("/api/generate-bot-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: botLanguage, prompt: `${botName}: ${botDescription}. Indicators: ${selectedIndicators.join(", ") || "SMA, RSI"}. Timeframe: ${timeframe}.` }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "AI generation failed")
+      setBotCode(data.code || "")
+      toast({ title: "Strategy generated", description: "Review the generated code before saving the bot." })
+    } catch (error) {
+      toast({ title: "Generation failed", description: error instanceof Error ? error.message : "Unable to generate code.", variant: "destructive" })
+    } finally {
+      setIsGeneratingCode(false)
+    }
+  }
+
 // Define the type for defaultCodeTemplates
 interface CodeTemplates {
   [language: string]: {
@@ -2760,7 +2781,11 @@ return (
                 aria-label="Edit bot code"
               />
             </div>
-            <Button onClick={() => setIsCodeModalOpen(true)} variant="secondary">
+            <Button onClick={generateWithAI} disabled={isGeneratingCode} variant="secondary">
+                {isGeneratingCode ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                {isGeneratingCode ? "Generating..." : "Generate with AI"}
+              </Button>
+              <Button onClick={() => setIsCodeModalOpen(true)} variant="secondary">
               <Code className="mr-2 h-4 w-4" /> View Code in Modal
             </Button>
           </div>
