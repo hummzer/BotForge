@@ -1,0 +1,11 @@
+import { Check } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+
+const plans = [
+ {name:"Free",price:"$0",desc:"Explore BotForge",features:["MQL4 generation","Pine Script generation","2 saved bots","Basic backtesting","Trading journal","Forex news panel"]},
+ {name:"Pro",price:"$19",desc:"Build seriously",features:["Everything in Free","Five-language generation","MQL5 + Python + Rust","Unlimited saved bots","Multi-timeframe engine","Advanced backtesting","Demo broker connections"]},
+ {name:"Quant",price:"$49",desc:"Execution research",features:["Everything in Pro","Priority AI generation","Advanced risk controls","Copy-trading workspace","Broker adapter framework","Portfolio analytics","Execution logs"]}
+]
+export default function PricingPage(){return <div className="min-h-screen bg-spotify-black py-16 text-spotify-text-primary"><div className="container mx-auto max-w-6xl px-4"><div className="mx-auto mb-12 max-w-2xl text-center"><p className="text-xs tracking-[0.3em] text-spotify-green">BOTFORGE · PRICING</p><h1 className="mt-3 font-display text-4xl font-bold">Choose your trading workspace.</h1><p className="mt-3 text-sm text-spotify-text-secondary">Free starts the workflow. Pro unlocks the five-language compiler. Quant adds execution research tooling.</p></div><div className="grid gap-6 md:grid-cols-3">{plans.map((p,i)=><Card key={p.name} className={i===1?"border-spotify-green bg-spotify-dark-grey shadow-2xl ring-1 ring-spotify-green":"border-spotify-grey bg-spotify-dark-grey shadow-xl"}><CardHeader><CardTitle>{p.name}</CardTitle><p className="text-sm text-spotify-text-secondary">{p.desc}</p><p className="pt-4 font-display text-4xl font-bold">{p.price}<span className="text-sm text-spotify-text-secondary">{p.price!=="$0"?"/month":""}</span></p></CardHeader><CardContent><ul className="space-y-3 text-sm">{p.features.map(f=><li key={f} className="flex gap-2"><Check className="h-4 w-4 shrink-0 text-spotify-green"/>{f}</li>)}</ul><Link href="/strategies"><Button className="mt-7 w-full bg-spotify-green text-spotify-black">{p.name==="Free"?"Start building":"Open "+p.name}</Button></Link></CardContent></Card>)}</div></div></div>}
