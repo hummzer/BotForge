@@ -184,7 +184,7 @@ export default function SettingsPage() {
                   <Server className="mr-2 h-5 w-5 text-spotify-green" /> VPS Services
                 </CardTitle>
                 <CardDescription className="text-sm text-spotify-text-secondary">
-                  Order Momo VPS or connect your existing cloud VPS for 24/7 bot operation.
+                  Order BotForge VPS or connect your existing cloud VPS for 24/7 bot operation.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
@@ -200,7 +200,7 @@ export default function SettingsPage() {
                       <SelectValue placeholder="Select provider" />
                     </SelectTrigger>
                     <SelectContent className="bg-spotify-dark-grey text-spotify-text-primary border-spotify-grey rounded-md">
-                      <SelectItem value="momo">Momo Managed VPS</SelectItem>
+                      <SelectItem value="momo">BotForge Managed VPS</SelectItem>
                       <SelectItem value="aws">AWS</SelectItem>
                       <SelectItem value="google-cloud">Google Cloud</SelectItem>
                       <SelectItem value="azure">Azure</SelectItem>
@@ -231,7 +231,7 @@ export default function SettingsPage() {
                 </Button>
                 {vpsProvider === "momo" && (
                   <p className="text-xs text-spotify-text-secondary mt-2">
-                    Momo Managed VPS offers optimized performance and simplified setup.
+                    BotForge Managed VPS offers optimized performance and simplified setup.
                   </p>
                 )}
               </CardContent>
@@ -305,7 +305,7 @@ export default function SettingsPage() {
       </div>
       <footer className="py-8 text-center text-xs text-spotify-text-secondary border-t border-spotify-grey bg-spotify-dark-grey mt-8">
         <div className="container mx-auto max-w-6xl px-4">
-          &copy; {new Date().getFullYear()} Momo. All rights reserved. Made by{" "}
+          &copy; {new Date().getFullYear()} BotForge. All rights reserved. Made by{" "}
           <a
             href="https://hummzer.vercel.app/"
             target="_blank"
