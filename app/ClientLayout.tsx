@@ -15,6 +15,10 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     { name: "My Bots", href: "/bots" },
     { name: "Live Bots", href: "/live-bots" },
     { name: "Backtesting", href: "/backtest" },
+    { name: "Strategies", href: "/strategies" },
+    { name: "Journal", href: "/journal" },
+    { name: "Brokers", href: "/brokers" },
+    { name: "Pricing", href: "/pricing" },
     { name: "Market Data", href: "/data" },
     { name: "Settings", href: "/settings" },
   ]
