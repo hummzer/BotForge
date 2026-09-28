@@ -1,45 +1,26 @@
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Sparkles } from "lucide-react"
+import { Bot, BarChart3, Sparkles } from "lucide-react"
+import { RealtimeMarket } from "@/components/realtime-market"
 
 export function HeroSection() {
   return (
-    <section className="relative py-20 md:py-32 text-center bg-gradient-to-b from-spotify-dark-grey to-spotify-black overflow-hidden">
-      <div className="container mx-auto max-w-6xl px-4 relative z-10">
-        <h1 className="font-display text-5xl md:text-7xl font-bold text-spotify-green leading-tight mb-6 animate-fade-in-up">
-          Momo
-        </h1>
-        <p className="text-xl md:text-2xl text-spotify-text-primary mb-8 animate-fade-in-up animation-delay-200">
-          Build, Backtest, and Deploy AI-Powered Trading Bots with Ease.
+    <section className="relative overflow-hidden bg-gradient-to-b from-spotify-dark-grey to-spotify-black py-20 text-center md:py-28">
+      <div className="container relative z-10 mx-auto max-w-6xl px-4">
+        <p className="mb-4 text-xs font-semibold tracking-[0.35em] text-spotify-green">BOTFORGE · ALGORITHMIC TRADING</p>
+        <h1 className="font-display text-5xl font-bold leading-tight text-spotify-green md:text-7xl">BotForge</h1>
+        <p className="mx-auto mt-6 max-w-3xl text-xl text-spotify-text-primary md:text-2xl">
+          Build, backtest, monitor and deploy trading bots from one workspace.
         </p>
-        <p className="text-md md:text-lg text-spotify-text-secondary mb-10 animate-fade-in-up animation-delay-300">
-          Automate your trading strategies, optimize performance, and connect to global markets.
+        <p className="mx-auto mt-4 max-w-2xl text-sm text-spotify-text-secondary md:text-base">
+          Generate strategy code, test it against real market candles, stream live prices and run paper bots without fake performance data.
         </p>
-        <div className="flex flex-col sm:flex-row justify-center gap-4 animate-fade-in-up animation-delay-400">
-          <Link href="/bots/create">
-            <Button
-              size="lg"
-              className="bg-spotify-green text-spotify-black hover:bg-spotify-green/90 transition-all duration-300 hover:scale-105 rounded-full shadow-lg"
-            >
-              <Sparkles className="mr-2 h-5 w-5" /> Start Building Your Bot
-            </Button>
-          </Link>
-          <Link href="/backtest">
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-spotify-grey text-spotify-text-primary hover:bg-spotify-grey/50 bg-transparent transition-all duration-300 hover:scale-105 rounded-full shadow-lg"
-            >
-              Explore Backtesting
-            </Button>
-          </Link>
+        <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
+          <Link href="/bots/create"><Button size="lg" className="rounded-full bg-spotify-green text-spotify-black hover:bg-spotify-green/90"><Sparkles className="mr-2 h-5 w-5" />Build a Bot</Button></Link>
+          <Link href="/backtest"><Button size="lg" variant="outline" className="rounded-full border-spotify-grey bg-transparent text-spotify-text-primary"><BarChart3 className="mr-2 h-5 w-5" />Run a Backtest</Button></Link>
+          <Link href="/live-bots"><Button size="lg" variant="outline" className="rounded-full border-spotify-grey bg-transparent text-spotify-text-primary"><Bot className="mr-2 h-5 w-5" />Live Monitor</Button></Link>
         </div>
-      </div>
-      {/* Abstract background elements */}
-      <div className="absolute inset-0 z-0 opacity-10">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-spotify-green rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-500"></div>
-        <div className="absolute bottom-1/3 right-1/4 w-72 h-72 bg-spotify-light-grey rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-700"></div>
-        <div className="absolute top-1/2 left-1/2 w-56 h-56 bg-spotify-dark-grey rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-900"></div>
+        <RealtimeMarket />
       </div>
     </section>
   )
