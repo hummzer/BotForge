@@ -7,25 +7,17 @@ import { CallToActionSection } from "@/components/call-to-action-section"
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-spotify-black font-sans text-spotify-text-primary">
-      <main className="py-8">
+      <main>
         <HeroSection />
         <FeaturesSection />
         <HowItWorksSection />
         <WhyChooseUsSection />
         <CallToActionSection />
       </main>
-      <footer className="py-8 text-center text-xs text-spotify-text-secondary border-t border-spotify-grey bg-spotify-dark-grey">
+      <footer className="border-t border-spotify-grey bg-spotify-dark-grey py-8 text-center text-xs text-spotify-text-secondary">
         <div className="container mx-auto max-w-6xl px-4">
-          &copy; {new Date().getFullYear()} Momo. All rights reserved. Made by{" "}
-          <a
-            href="https://hummzer.vercel.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-spotify-green hover:underline"
-          >
-            Hummzer
-          </a>
-          .
+          &copy; {new Date().getFullYear()} BotForge. All rights reserved. Built by{" "}
+          <a href="https://hummzer.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-spotify-green hover:underline">Hummzer</a>.
         </div>
       </footer>
     </div>
