@@ -13,6 +13,7 @@ export default function HomePage() {
         <FeaturesSection />
         <HowItWorksSection />
         <WhyChooseUsSection />
+        <NewsPanel />
         <CallToActionSection />
       </main>
       <footer className="border-t border-spotify-grey bg-spotify-dark-grey py-8 text-center text-xs text-spotify-text-secondary">
