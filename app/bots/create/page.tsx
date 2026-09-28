@@ -14,7 +14,7 @@ export default function CreateBotPage() {
       </div>
       <footer className="py-8 text-center text-xs text-spotify-text-secondary border-t border-spotify-grey bg-spotify-dark-grey mt-8">
         <div className="container mx-auto max-w-6xl px-4">
-          &copy; {new Date().getFullYear()} Momo. All rights reserved. Made by{" "}
+          &copy; {new Date().getFullYear()} BotForge. All rights reserved. Made by{" "}
           <a
             href="https://hummzer.vercel.app/"
             target="_blank"
