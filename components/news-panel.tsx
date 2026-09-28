@@ -1,0 +1,6 @@
+"use client"
+import {CalendarDays,ExternalLink} from "lucide-react"
+export function NewsPanel(){
+ const calendarUrl="https://www."+"forexfactory.com/calendar?embed=true"
+ return <section className="bg-spotify-black py-10"><div className="container mx-auto max-w-6xl px-4"><div className="rounded-2xl border border-spotify-grey bg-spotify-dark-grey p-5 shadow-2xl"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs tracking-[0.25em] text-spotify-green">BOTFORGE · ECONOMIC CALENDAR</p><h2 className="mt-1 font-display text-2xl font-bold">Forex Factory News</h2><p className="text-xs text-spotify-text-secondary">High → medium → low impact events with scheduled times.</p></div><a href={calendarUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-spotify-green">Full calendar <ExternalLink className="ml-1 inline h-3 w-3"/></a></div><div className="mt-4 flex items-center gap-2 text-xs text-spotify-text-secondary"><CalendarDays className="h-4 w-4 text-spotify-green"/>Embedded calendar · event times are approximate and can change.</div><div className="mt-4 overflow-hidden rounded-xl border border-spotify-grey bg-white"><iframe title="Forex Factory economic calendar" src={calendarUrl} className="h-[420px] w-full"/></div></div></div></section>
+}
