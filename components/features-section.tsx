@@ -3,56 +3,22 @@ import { Code, TrendingUp, Cloud, Brain, ShieldCheck, Zap } from "lucide-react"
 
 export function FeaturesSection() {
   const features = [
-    {
-      icon: Code,
-      title: "AI-Powered Code Generation",
-      description: "Generate complex trading strategies from natural language prompts in multiple languages.",
-    },
-    {
-      icon: TrendingUp,
-      title: "Advanced Backtesting",
-      description: "Rigorously test your bots against historical data with detailed performance metrics and charts.",
-    },
-    {
-      icon: Cloud,
-      title: "Seamless Cloud Deployment",
-      description: "Deploy your bots to Momo's managed VPS or connect your own cloud services for 24/7 operation.",
-    },
-    {
-      icon: Brain,
-      title: "Intelligent Optimization",
-      description: "Receive AI-driven suggestions to fine-tune your strategies for maximum profitability.",
-    },
-    {
-      icon: ShieldCheck,
-      title: "Robust Risk Management",
-      description: "Built-in tools for Stop Loss, Take Profit, and Risk-to-Reward ratios to protect your capital.",
-    },
-    {
-      icon: Zap,
-      title: "Real-time Market Data",
-      description: "Access live data feeds and connect to popular brokers like Deriv, Binance, and Kraken.",
-    },
+    { icon: Code, title: "AI Strategy Generation", description: "Turn a natural-language strategy into editable Python, JavaScript, Rust, C++, Pine Script or MQL code." },
+    { icon: TrendingUp, title: "Real Historical Backtesting", description: "Pull live public market candles and calculate trades, win rate, P/L, drawdown and profit factor from deterministic rules." },
+    { icon: Cloud, title: "Live Paper Execution", description: "Stream market prices over WebSocket and monitor bot state, equity and paper trades in real time." },
+    { icon: Brain, title: "Strategy Workspace", description: "Store created bots in the browser, edit code, download files and carry the same strategy into testing." },
+    { icon: ShieldCheck, title: "Risk Controls", description: "Use explicit stop-loss, take-profit and risk-per-trade parameters in strategy testing." },
+    { icon: Zap, title: "Market Data", description: "Stream BTC/USDT from Binance public market infrastructure and import your own CSV candle data." },
   ]
-
   return (
-    <section className="py-16 bg-spotify-black">
+    <section className="bg-spotify-black py-16">
       <div className="container mx-auto max-w-6xl px-4">
-        <h2 className="font-display text-4xl font-bold text-center text-spotify-text-primary mb-12 animate-fade-in-up">
-          Why Choose Momo?
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {features.map((feature, index) => (
-            <Card
-              key={index}
-              className="bg-spotify-dark-grey border-spotify-grey shadow-lg hover:shadow-xl transition-all duration-300 animate-fade-in-up rounded-lg"
-              style={{ animationDelay: `${100 + index * 75}ms` }}
-            >
-              <CardHeader className="flex flex-row items-center space-x-4 pb-2">
-                <feature.icon className="h-8 w-8 text-spotify-green" />
-                <CardTitle className="text-xl font-semibold text-spotify-text-primary">{feature.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-spotify-text-secondary text-sm">{feature.description}</CardContent>
+        <h2 className="mb-12 text-center font-display text-4xl font-bold text-spotify-text-primary">Why BotForge?</h2>
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+          {features.map(({ icon: Icon, title, description }, index) => (
+            <Card key={title} className="rounded-lg border-spotify-grey bg-spotify-dark-grey shadow-lg transition-all hover:shadow-xl" style={{ animationDelay: `${100 + index * 75}ms` }}>
+              <CardHeader className="flex flex-row items-center space-x-4 pb-2"><Icon className="h-8 w-8 text-spotify-green" /><CardTitle className="text-xl text-spotify-text-primary">{title}</CardTitle></CardHeader>
+              <CardContent className="text-sm text-spotify-text-secondary">{description}</CardContent>
             </Card>
           ))}
         </div>
