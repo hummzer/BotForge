@@ -6,56 +6,31 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
-import { inter, orbitron, firaCode } from "@/lib/fonts" // Import fonts here
+import { inter, orbitron, firaCode } from "@/lib/fonts"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
-  // This is a client component to use usePathname
-  function NavigationLinks() {
-    const pathname = usePathname()
-    const navLinks = [
-      { name: "Home", href: "/" },
-      { name: "My Bots", href: "/bots" },
-      { name: "Live Bots", href: "/live-bots" }, // New link for live bots dashboard
-      { name: "Backtesting", href: "/backtest" },
-      { name: "Market Data", href: "/data" },
-      { name: "Settings", href: "/settings" },
-    ]
-
-    return (
-      <nav className="flex space-x-8 text-sm animate-fade-in-up animation-delay-100">
-        {navLinks.map((link) => (
-          <Link
-            key={link.name}
-            href={link.href}
-            className={cn(
-              "text-spotify-text-secondary font-medium hover:text-spotify-green transition-colors duration-200",
-              pathname === link.href && "text-spotify-green border-b-2 border-spotify-green pb-1",
-            )}
-          >
-            {link.name}
-          </Link>
-        ))}
-      </nav>
-    )
-  }
+  const pathname = usePathname()
+  const navLinks = [
+    { name: "Home", href: "/" },
+    { name: "My Bots", href: "/bots" },
+    { name: "Live Bots", href: "/live-bots" },
+    { name: "Backtesting", href: "/backtest" },
+    { name: "Market Data", href: "/data" },
+    { name: "Settings", href: "/settings" },
+  ]
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={cn(
-          "min-h-screen bg-spotify-black font-sans antialiased text-spotify-text-primary flex flex-col",
-          inter.variable,
-          orbitron.variable,
-          firaCode.variable,
-        )}
-      >
+      <body className={cn("min-h-screen bg-spotify-black font-sans antialiased text-spotify-text-primary flex flex-col", inter.variable, orbitron.variable, firaCode.variable)}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          <header className="w-full bg-spotify-dark-grey py-4 shadow-lg sticky top-0 z-50">
-            <div className="container mx-auto max-w-6xl px-4 flex flex-col items-center justify-center">
-              <Link href="/" className="font-display text-2xl font-bold text-spotify-green animate-fade-in-up mb-4">
-                Momo
-              </Link>
-              <NavigationLinks />
+          <header className="sticky top-0 z-50 w-full border-b border-spotify-grey bg-spotify-dark-grey/95 py-4 backdrop-blur">
+            <div className="container mx-auto flex max-w-6xl flex-col items-center justify-center gap-4 px-4 md:flex-row md:justify-between">
+              <Link href="/" className="font-display text-2xl font-bold text-spotify-green">BotForge</Link>
+              <nav className="flex flex-wrap justify-center gap-5 text-sm">
+                {navLinks.map(link => (
+                  <Link key={link.href} href={link.href} className={cn("font-medium text-spotify-text-secondary transition-colors hover:text-spotify-green", pathname === link.href && "text-spotify-green")}>{link.name}</Link>
+                ))}
+              </nav>
             </div>
           </header>
           <main className="flex-1">{children}</main>
