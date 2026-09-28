@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ResponsiveContainer, ComposedChart, XAxis, YAxis, Line, CartesianGrid, Tooltip } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Badge } from "@/components/ui/badge"
+import { createBot, readBots, writeBots } from "@/lib/botforge"
 // Mock CodeHighlighter (replace with react-syntax-highlighter if used)
 const CodeHighlighter = ({ language, value, onChange, className, ...props }) => (
   <Textarea
@@ -2797,10 +2798,22 @@ return (
               if (step < totalSteps) {
                 setStep((prev) => prev + 1);
               } else {
+                const code = botCode || defaultCodeTemplates[botLanguage][selectedTemplate]
+                const bot = createBot({
+                  name: botName.trim(),
+                  language: botLanguage,
+                  status: "Production Ready",
+                  code,
+                  description: botDescription.trim(),
+                  symbol: "BTCUSDT",
+                  timeframe,
+                  indicators: selectedIndicators,
+                })
+                writeBots([...readBots(), bot])
                 toast({
                   title: "Bot Created",
-                  description: "Your trading bot has been successfully created!",
-                });
+                  description: `${bot.name} is saved in your BotForge workspace.`,
+                })
                 router.push("/bots");
               }
             }}
