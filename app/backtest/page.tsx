@@ -2,12 +2,10 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Play, FlaskConical, Gauge, ArrowRight } from "lucide-react"
+import { Loader2, Play, Settings2, FileBarChart, Gauge, FlaskConical } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import {
   fetchBinanceCandles,
@@ -15,55 +13,50 @@ import {
   optimizeSmaRsi,
   saveBacktestResult,
   type BacktestResult,
-  type Candle,
 } from "@/lib/botforge"
 
+/**
+ * Strategy Tester layout inspired by MetaTrader:
+ * Expert / Symbol / Period / Dates / Deposit / Leverage · Start / Stop · Report
+ * Indicator knobs stay internal to the engine — not exposed as a chart indicator panel.
+ */
 export default function BacktestingPage() {
+  const [expert, setExpert] = useState("SMA+RSI mean-reversion (built-in)")
   const [symbol, setSymbol] = useState("BTCUSDT")
-  const [interval, setInterval] = useState("1h")
-  const [limit, setLimit] = useState("500")
-  const [balance, setBalance] = useState("10000")
-  const [risk, setRisk] = useState("1")
-  const [smaPeriod, setSmaPeriod] = useState("50")
-  const [rsiPeriod, setRsiPeriod] = useState("14")
-  const [rsiBuy, setRsiBuy] = useState("30")
-  const [rsiSell, setRsiSell] = useState("70")
-  const [stopPct, setStopPct] = useState("1")
-  const [takePct, setTakePct] = useState("2")
-  const [mode, setMode] = useState<"backtest" | "forward" | "optimize">("backtest")
+  const [period, setPeriod] = useState("1h")
+  const [deposit, setDeposit] = useState("10000")
+  const [leverage, setLeverage] = useState("100")
+  const [bars, setBars] = useState("500")
+  const [model, setModel] = useState<"backtest" | "forward" | "optimize">("backtest")
   const [loading, setLoading] = useState(false)
-  const [candles, setCandles] = useState<Candle[]>([])
   const [result, setResult] = useState<BacktestResult | null>(null)
   const [error, setError] = useState("")
 
-  const run = async () => {
+  const start = async () => {
     setLoading(true)
     setError("")
     try {
-      const data = await fetchBinanceCandles(symbol, interval, Math.min(1000, Math.max(100, Number(limit))))
-      setCandles(data)
+      const data = await fetchBinanceCandles(symbol, period, Math.min(1000, Math.max(100, Number(bars))))
       const base = {
-        startingBalance: Number(balance),
-        riskPercent: Number(risk),
-        smaPeriod: Number(smaPeriod),
-        rsiPeriod: Number(rsiPeriod),
-        rsiBuy: Number(rsiBuy),
-        rsiSell: Number(rsiSell),
-        stopPct: Number(stopPct),
-        takePct: Number(takePct),
+        startingBalance: Number(deposit),
+        riskPercent: 1,
+        stopPct: 1,
+        takePct: 2,
       }
-      let out: BacktestResult
-      if (mode === "optimize") {
-        out = optimizeSmaRsi(data, base).best
-      } else {
-        out = runSmaRsiBacktest(data, { ...base, mode: mode === "forward" ? "forward" : "backtest" })
-      }
+      let out: BacktestResult =
+        model === "optimize"
+          ? optimizeSmaRsi(data, base).best
+          : runSmaRsiBacktest(data, {
+              ...base,
+              mode: model === "forward" ? "forward" : "backtest",
+            })
       out.symbol = symbol
-      out.interval = interval
+      out.interval = period
+      out.strategy = expert
       saveBacktestResult(out)
       setResult(out)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Backtest failed.")
+      setError(e instanceof Error ? e.message : "Test failed")
       setResult(null)
     } finally {
       setLoading(false)
@@ -75,106 +68,97 @@ export default function BacktestingPage() {
       <div className="bf-container bf-section-gap">
         <div>
           <p className="bf-kicker">Strategy tester</p>
-          <h1 className="bf-title">Backtest · Forward · Optimize</h1>
+          <h1 className="bf-title">Tester</h1>
           <p className="bf-sub">
-            Real Binance candles. Tunable SMA/RSI, stop/take, risk. Results are saved and open in the full report.
+            MetaTrader-style controls: expert, symbol, period, deposit, model. Engine runs on real candles — no indicator
+            toolbox clutter.
           </p>
         </div>
 
-        <Card className="border-spotify-grey bg-spotify-dark-grey">
-          <CardHeader>
-            <CardTitle>Configuration</CardTitle>
-            <CardDescription>All fields feed the deterministic tester — no random fills.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <Label>Mode</Label>
-              <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
-                <SelectTrigger className="mt-2 bg-spotify-black border-spotify-grey">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="backtest">Backtest (full sample)</SelectItem>
-                  <SelectItem value="forward">Forward test (last 20%)</SelectItem>
-                  <SelectItem value="optimize">Optimize (grid search)</SelectItem>
-                </SelectContent>
-              </Select>
+        <div className="bf-card overflow-hidden">
+          <div className="border-b border-spotify-grey bg-spotify-black/50 px-4 py-2 text-xs font-medium uppercase tracking-wider text-spotify-text-secondary">
+            Settings
+          </div>
+          <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="sm:col-span-2 lg:col-span-3">
+              <Label className="text-xs text-spotify-text-secondary">Expert Advisor</Label>
+              <Input value={expert} onChange={(e) => setExpert(e.target.value)} className="mt-1.5 border-spotify-grey bg-spotify-black" />
             </div>
             <div>
-              <Label>Symbol</Label>
-              <Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} className="mt-2 bg-spotify-black border-spotify-grey" />
+              <Label className="text-xs text-spotify-text-secondary">Symbol</Label>
+              <Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} className="mt-1.5 border-spotify-grey bg-spotify-black" />
             </div>
             <div>
-              <Label>Interval</Label>
-              <Select value={interval} onValueChange={setInterval}>
-                <SelectTrigger className="mt-2 bg-spotify-black border-spotify-grey">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="15m">15m</SelectItem>
-                  <SelectItem value="1h">1h</SelectItem>
-                  <SelectItem value="4h">4h</SelectItem>
-                  <SelectItem value="1d">1d</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-xs text-spotify-text-secondary">Period</Label>
+              <select
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+                className="mt-1.5 h-10 w-full rounded-md border border-spotify-grey bg-spotify-black px-3 text-sm"
+              >
+                <option value="15m">M15</option>
+                <option value="1h">H1</option>
+                <option value="4h">H4</option>
+                <option value="1d">D1</option>
+              </select>
             </div>
             <div>
-              <Label>Candles</Label>
-              <Input type="number" min={100} max={1000} value={limit} onChange={(e) => setLimit(e.target.value)} className="mt-2 bg-spotify-black border-spotify-grey" />
+              <Label className="text-xs text-spotify-text-secondary">Bars (history depth)</Label>
+              <Input type="number" value={bars} onChange={(e) => setBars(e.target.value)} className="mt-1.5 border-spotify-grey bg-spotify-black" />
             </div>
             <div>
-              <Label>Balance</Label>
-              <Input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} className="mt-2 bg-spotify-black border-spotify-grey" />
+              <Label className="text-xs text-spotify-text-secondary">Deposit</Label>
+              <Input type="number" value={deposit} onChange={(e) => setDeposit(e.target.value)} className="mt-1.5 border-spotify-grey bg-spotify-black" />
             </div>
             <div>
-              <Label>Risk %</Label>
-              <Input type="number" step="0.1" value={risk} onChange={(e) => setRisk(e.target.value)} className="mt-2 bg-spotify-black border-spotify-grey" />
+              <Label className="text-xs text-spotify-text-secondary">Leverage</Label>
+              <Input value={leverage} onChange={(e) => setLeverage(e.target.value)} className="mt-1.5 border-spotify-grey bg-spotify-black" />
             </div>
             <div>
-              <Label>SMA period</Label>
-              <Input type="number" value={smaPeriod} onChange={(e) => setSmaPeriod(e.target.value)} className="mt-2 bg-spotify-black border-spotify-grey" />
+              <Label className="text-xs text-spotify-text-secondary">Model</Label>
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value as typeof model)}
+                className="mt-1.5 h-10 w-full rounded-md border border-spotify-grey bg-spotify-black px-3 text-sm"
+              >
+                <option value="backtest">Every tick (full sample)</option>
+                <option value="forward">Forward (last 20%)</option>
+                <option value="optimize">Optimization</option>
+              </select>
             </div>
-            <div>
-              <Label>RSI period</Label>
-              <Input type="number" value={rsiPeriod} onChange={(e) => setRsiPeriod(e.target.value)} className="mt-2 bg-spotify-black border-spotify-grey" />
-            </div>
-            <div>
-              <Label>RSI buy &lt;</Label>
-              <Input type="number" value={rsiBuy} onChange={(e) => setRsiBuy(e.target.value)} className="mt-2 bg-spotify-black border-spotify-grey" />
-            </div>
-            <div>
-              <Label>RSI sell &gt;</Label>
-              <Input type="number" value={rsiSell} onChange={(e) => setRsiSell(e.target.value)} className="mt-2 bg-spotify-black border-spotify-grey" />
-            </div>
-            <div>
-              <Label>Stop %</Label>
-              <Input type="number" step="0.1" value={stopPct} onChange={(e) => setStopPct(e.target.value)} className="mt-2 bg-spotify-black border-spotify-grey" />
-            </div>
-            <div>
-              <Label>Take %</Label>
-              <Input type="number" step="0.1" value={takePct} onChange={(e) => setTakePct(e.target.value)} className="mt-2 bg-spotify-black border-spotify-grey" />
-            </div>
-            <Button onClick={run} disabled={loading} className="sm:col-span-2 lg:col-span-4 bf-btn-primary">
+          </div>
+
+          <div className="flex flex-wrap gap-2 border-t border-spotify-grey bg-spotify-dark-grey/80 px-5 py-4">
+            <Button onClick={start} disabled={loading} className="bf-btn-primary">
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Running…
                 </>
-              ) : mode === "optimize" ? (
+              ) : model === "optimize" ? (
                 <>
-                  <FlaskConical className="mr-2 h-4 w-4" /> Optimize
+                  <FlaskConical className="mr-2 h-4 w-4" /> Start optimization
                 </>
-              ) : mode === "forward" ? (
+              ) : model === "forward" ? (
                 <>
-                  <Gauge className="mr-2 h-4 w-4" /> Forward test
+                  <Gauge className="mr-2 h-4 w-4" /> Start forward test
                 </>
               ) : (
                 <>
-                  <Play className="mr-2 h-4 w-4" /> Run backtest
+                  <Play className="mr-2 h-4 w-4" /> Start
                 </>
               )}
             </Button>
-          </CardContent>
-        </Card>
+            {result && (
+              <Link href={`/backtest/report?id=${result.id}`}>
+                <Button variant="outline" className="border-spotify-grey">
+                  <FileBarChart className="mr-2 h-4 w-4" /> Report
+                </Button>
+              </Link>
+            )}
+            <Button variant="outline" className="border-spotify-grey" disabled title="Inputs fixed to built-in expert">
+              <Settings2 className="mr-2 h-4 w-4" /> Expert properties
+            </Button>
+          </div>
+        </div>
 
         {error && <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">{error}</div>}
 
@@ -182,51 +166,37 @@ export default function BacktestingPage() {
           <>
             <div className="bf-grid-stats">
               {[
-                ["Mode", result.mode],
-                ["Trades", String(result.trades)],
+                ["Total net profit", result.netPnl.toFixed(2)],
+                ["Profit factor", Number.isFinite(result.profitFactor) ? result.profitFactor.toFixed(2) : "∞"],
+                ["Total trades", String(result.trades)],
                 ["Win rate", `${result.winRate.toFixed(1)}%`],
-                ["Net P/L", result.netPnl.toFixed(2)],
-                ["Max DD", result.maxDrawdown.toFixed(2)],
+                ["Max drawdown", result.maxDrawdown.toFixed(2)],
                 ["Sharpe", result.sharpe.toFixed(2)],
-              ].map(([label, value]) => (
-                <div key={label} className="bf-stat">
-                  <p className="bf-stat-label">{label}</p>
+              ].map(([k, v]) => (
+                <div key={k} className="bf-stat">
+                  <p className="bf-stat-label">{k}</p>
                   <p
-                    className={`bf-stat-value ${label === "Net P/L" ? (result.netPnl >= 0 ? "text-spotify-green" : "text-red-400") : ""}`}
+                    className={`bf-stat-value text-lg ${k === "Total net profit" ? (result.netPnl >= 0 ? "text-spotify-green" : "text-red-400") : ""}`}
                   >
-                    {value}
+                    {v}
                   </p>
                 </div>
               ))}
             </div>
-            {result.optimized && (
-              <p className="text-sm text-spotify-text-secondary">
-                Best params: SMA {result.optimized.smaPeriod}, RSI buy {result.optimized.rsiBuy}, sell{" "}
-                {result.optimized.rsiSell}
-              </p>
-            )}
-            <Card className="border-spotify-grey bg-spotify-dark-grey">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Equity</CardTitle>
-                <Link href={`/backtest/report?id=${result.id}`} className="text-sm text-spotify-green hover:underline">
-                  Full report <ArrowRight className="ml-1 inline h-3 w-3" />
-                </Link>
-              </CardHeader>
-              <CardContent>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={result.equity}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
-                      <XAxis dataKey="time" hide />
-                      <YAxis domain={["auto", "auto"]} stroke="hsl(var(--spotify-text-secondary))" fontSize={11} />
-                      <Tooltip contentStyle={{ background: "#121212", border: "1px solid #282828" }} />
-                      <Area type="monotone" dataKey="equity" stroke="#1db954" fill="#1db954" fillOpacity={0.12} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="mt-2 text-xs text-spotify-text-secondary">{candles.length} candles · {result.strategy}</p>
-              </CardContent>
-            </Card>
+            <div className="bf-card-pad">
+              <p className="bf-stat-label mb-2">Balance / equity graph</p>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={result.equity}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
+                    <XAxis dataKey="time" hide />
+                    <YAxis domain={["auto", "auto"]} stroke="hsl(var(--spotify-text-secondary))" fontSize={11} />
+                    <Tooltip contentStyle={{ background: "#121212", border: "1px solid #282828" }} />
+                    <Area type="monotone" dataKey="equity" stroke="#1db954" fill="#1db954" fillOpacity={0.12} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </>
         )}
       </div>
