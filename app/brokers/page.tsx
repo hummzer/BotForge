@@ -10,6 +10,21 @@ import { Link2, Wifi, WifiOff } from "lucide-react"
 
 const STORAGE_KEY = "botforge_broker"
 
+const BROKERS = [
+  { id: "mt5", name: "MetaTrader 5", status: "live", desc: "EA deploy + account bridge" },
+  { id: "mt4", name: "MetaTrader 4", status: "live", desc: "EA deploy + account bridge" },
+  { id: "oanda", name: "OANDA", status: "live", desc: "REST practice / live token" },
+  { id: "ctrader", name: "cTrader", status: "beta", desc: "Open API bridge" },
+  { id: "deriv", name: "Deriv", status: "beta", desc: "Binary + CFDs API" },
+  { id: "ibkr", name: "Interactive Brokers", status: "planned", desc: "TWS / Gateway" },
+  { id: "binance", name: "Binance", status: "beta", desc: "Spot + futures keys" },
+  { id: "bybit", name: "Bybit", status: "planned", desc: "Unified trading API" },
+  { id: "fxcm", name: "FXCM", status: "planned", desc: "Forex Connect" },
+  { id: "pepperstone", name: "Pepperstone", status: "via-mt", desc: "Via MT4/MT5" },
+  { id: "icmarkets", name: "IC Markets", status: "via-mt", desc: "Via MT4/MT5" },
+  { id: "exness", name: "Exness", status: "via-mt", desc: "Via MT4/MT5" },
+]
+
 type BrokerAccount = {
   accountId: string
   balance: number
@@ -19,10 +34,12 @@ type BrokerAccount = {
   currency: string
   leverage: string
   server: string
+  brokerId: string
   connectedAt: string
 }
 
 export default function BrokersPage() {
+  const [brokerId, setBrokerId] = useState("oanda")
   const [accountId, setAccountId] = useState("")
   const [password, setPassword] = useState("")
   const [connected, setConnected] = useState(false)
@@ -37,21 +54,20 @@ export default function BrokersPage() {
         const data = JSON.parse(raw) as BrokerAccount
         setAccount(data)
         setConnected(true)
+        if (data.brokerId) setBrokerId(data.brokerId)
       }
     } catch {}
   }, [])
 
   const connect = async () => {
     if (!accountId.trim() || !password.trim()) {
-      setMessage("Enter both account number and password.")
+      setMessage("Enter account number and password / API token.")
       return
     }
     setLoading(true)
     setMessage("")
     try {
-      // Prefer real OANDA practice if token-shaped password is provided
-      const looksLikeToken = password.length > 20
-      if (looksLikeToken) {
+      if (brokerId === "oanda" && password.length > 20) {
         const r = await fetch("/api/brokers/oanda/connect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -68,35 +84,36 @@ export default function BrokersPage() {
             currency: d.account.currency || "USD",
             leverage: "1:100",
             server: "OANDA-Practice",
+            brokerId: "oanda",
             connectedAt: new Date().toISOString(),
           }
           setAccount(next)
           setConnected(true)
           localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
           setPassword("")
-          setMessage("Connected to practice account.")
+          setMessage("Connected to OANDA practice account.")
           setLoading(false)
           return
         }
       }
 
-      // Generic broker bridge (account + password): store session for dashboard
       const next: BrokerAccount = {
         accountId: accountId.trim(),
-        balance: 10000 + Math.random() * 2500,
-        equity: 10000 + Math.random() * 2500,
-        marginUsed: Math.random() * 400,
-        freeMargin: 9500 + Math.random() * 2000,
+        balance: 10000,
+        equity: 10000,
+        marginUsed: 0,
+        freeMargin: 10000,
         currency: "USD",
         leverage: "1:100",
-        server: "BotForge-Demo",
+        server: `${brokerId.toUpperCase()}-Demo`,
+        brokerId,
         connectedAt: new Date().toISOString(),
       }
       setAccount(next)
       setConnected(true)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       setPassword("")
-      setMessage("Account connected. Balance and equity are available on the dashboard / home overview.")
+      setMessage(`Connected via ${BROKERS.find((b) => b.id === brokerId)?.name || brokerId} bridge (session stored locally).`)
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Connection failed")
     } finally {
@@ -115,46 +132,78 @@ export default function BrokersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-spotify-black py-10 text-spotify-text-primary">
-      <div className="container mx-auto max-w-3xl px-4">
-        <p className="text-xs tracking-[0.3em] text-spotify-green">BOTFORGE · BROKER BRIDGE</p>
-        <h1 className="mt-3 font-display text-4xl font-bold">Connect Broker</h1>
-        <p className="mt-2 text-sm text-spotify-text-secondary max-w-xl">
-          Enter your account number and trading password. Connected account data appears here and on your workspace overview.
+    <div className="min-h-screen bg-[#070a0e] py-10 text-zinc-100">
+      <div className="container mx-auto max-w-5xl px-4">
+        <p className="text-xs tracking-[0.3em] text-violet-400">BOTFORGE · BROKER BRIDGE</p>
+        <h1 className="mt-3 text-4xl font-bold">Connect Broker</h1>
+        <p className="mt-2 max-w-xl text-sm text-zinc-400">
+          Choose a venue, enter credentials or API token. Live OANDA practice uses the real REST bridge; others use the
+          session bridge until full adapters ship.
         </p>
 
-        <Card className="mt-8 border-spotify-grey bg-spotify-dark-grey">
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {BROKERS.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => setBrokerId(b.id)}
+              className={
+                brokerId === b.id
+                  ? "rounded-xl border border-violet-500 bg-violet-600/10 p-4 text-left"
+                  : "rounded-xl border border-zinc-800 bg-[#0d1218] p-4 text-left hover:border-zinc-600"
+              }
+            >
+              <div className="flex items-center justify-between">
+                <p className="font-medium">{b.name}</p>
+                <Badge
+                  className={
+                    b.status === "live"
+                      ? "bg-emerald-500/15 text-emerald-400 border-0"
+                      : b.status === "beta"
+                        ? "bg-amber-500/15 text-amber-300 border-0"
+                        : "bg-zinc-800 text-zinc-400 border-0"
+                  }
+                >
+                  {b.status}
+                </Badge>
+              </div>
+              <p className="mt-1 text-xs text-zinc-500">{b.desc}</p>
+            </button>
+          ))}
+        </div>
+
+        <Card className="mt-8 border-zinc-800 bg-[#0d1218]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Link2 className="h-5 w-5 text-spotify-green" />
-              Account credentials
+              <Link2 className="h-5 w-5 text-violet-400" />
+              {BROKERS.find((b) => b.id === brokerId)?.name} credentials
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             {connected && account ? (
               <>
                 <div className="flex items-center justify-between">
-                  <Badge className="bg-spotify-green text-spotify-black gap-1">
+                  <Badge className="bg-emerald-500 text-black gap-1">
                     <Wifi className="h-3 w-3" /> CONNECTED
                   </Badge>
-                  <Button variant="outline" size="sm" onClick={disconnect} className="border-spotify-grey text-red-400">
+                  <Button variant="outline" size="sm" onClick={disconnect} className="border-zinc-700 text-red-400">
                     Disconnect
                   </Button>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   {[
                     ["Account", account.accountId],
+                    ["Broker", account.brokerId],
                     ["Balance", `$${account.balance.toFixed(2)}`],
                     ["Equity", `$${account.equity.toFixed(2)}`],
                     ["Free margin", `$${account.freeMargin.toFixed(2)}`],
-                    ["Margin used", `$${account.marginUsed.toFixed(2)}`],
                     ["Leverage", account.leverage],
                     ["Currency", account.currency],
                     ["Server", account.server],
                   ].map(([label, val]) => (
-                    <div key={label} className="rounded-xl bg-spotify-black border border-spotify-grey p-4">
-                      <p className="text-xs text-spotify-text-secondary">{label}</p>
-                      <p className="mt-1 font-mono text-sm text-spotify-text-primary">{val}</p>
+                    <div key={label} className="rounded-xl border border-zinc-800 bg-[#070a0e] p-4">
+                      <p className="text-xs text-zinc-500">{label}</p>
+                      <p className="mt-1 font-mono text-sm">{val}</p>
                     </div>
                   ))}
                 </div>
@@ -162,48 +211,36 @@ export default function BrokersPage() {
             ) : (
               <>
                 <div>
-                  <Label className="text-spotify-text-secondary">Account number</Label>
+                  <Label className="text-zinc-400">Account number / API key id</Label>
                   <Input
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    placeholder="Your broker account number"
-                    className="mt-2 h-12 bg-spotify-black border-spotify-grey"
+                    placeholder="Account or key id"
+                    className="mt-2 h-12 border-zinc-700 bg-[#070a0e]"
                   />
                 </div>
                 <div>
-                  <Label className="text-spotify-text-secondary">Password</Label>
+                  <Label className="text-zinc-400">Password / API token</Label>
                   <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Trading password or API token"
-                    className="mt-2 h-12 bg-spotify-black border-spotify-grey"
+                    placeholder="Trading password or bearer token"
+                    className="mt-2 h-12 border-zinc-700 bg-[#070a0e]"
                   />
                 </div>
                 <Button
                   onClick={connect}
                   disabled={loading}
-                  className="w-full h-12 bg-spotify-green text-spotify-black hover:bg-spotify-green/90"
+                  className="w-full h-12 bg-violet-600 text-white hover:bg-violet-500"
                 >
                   {loading ? "Connecting…" : "Connect account"}
                 </Button>
               </>
             )}
-            {message && <p className="text-sm text-spotify-text-secondary">{message}</p>}
+            {message && <p className="text-sm text-zinc-400">{message}</p>}
           </CardContent>
         </Card>
-
-        <div className="mt-10">
-          <h3 className="font-semibold mb-4 text-spotify-text-primary">Supported bridges</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {["MetaTrader 4", "MetaTrader 5", "cTrader", "OANDA", "Deriv", "Interactive Brokers"].map((b) => (
-              <div key={b} className="rounded-xl border border-spotify-grey bg-spotify-dark-grey p-4 text-center">
-                <p className="text-sm font-medium">{b}</p>
-                <p className="text-xs text-spotify-text-secondary mt-1">Supported</p>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   )

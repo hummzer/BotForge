@@ -1,366 +1,318 @@
 "use client"
 
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Lightbulb, Sparkles } from "lucide-react"
-import { ResponsiveContainer, LineChart as RechartsLineChart, BarChart as RechartsBarChart, PieChart, Line, XAxis, YAxis, CartesianGrid, Legend, Pie, Cell, Bar } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { useToast } from "@/hooks/use-toast"
+import Link from "next/link"
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  BarChart,
+  Bar,
+  Cell,
+  PieChart,
+  Pie,
+} from "recharts"
+
+const equity = [
+  { t: "Jun 2021", equity: 0, dd: 0 },
+  { t: "May 2022", equity: 800, dd: -2 },
+  { t: "Mar 2023", equity: 2100, dd: -3 },
+  { t: "Feb 2024", equity: 4800, dd: -4 },
+  { t: "Dec 2024", equity: 9200, dd: -5 },
+  { t: "Nov 2025", equity: 14500, dd: -6 },
+  { t: "Sep 2026", equity: 19978.73, dd: -6.48 },
+]
+
+const pnlDist = [
+  { bin: "-3%", n: 4, fill: "#ef4444" },
+  { bin: "-1.3%", n: 64, fill: "#ef4444" },
+  { bin: "-0.5%", n: 646, fill: "#ef4444" },
+  { bin: "+0.7%", n: 452, fill: "#34d399" },
+  { bin: "+2%", n: 143, fill: "#34d399" },
+  { bin: "+2.8%", n: 59, fill: "#34d399" },
+  { bin: "+4%", n: 30, fill: "#34d399" },
+  { bin: "+6%", n: 7, fill: "#34d399" },
+]
+
+const trades = [
+  { n: 1, side: "SHORT", entry: "Jul 5, 03:00", entryPx: 300.75, exit: "Jul 5, 05:00", exitPx: 302.3, qty: 1.32, bars: 2, net: -2.44, pct: -0.62 },
+  { n: 2, side: "SHORT", entry: "Jul 5, 03:00", entryPx: 300.75, exit: "Jul 5, 05:00", exitPx: 297.48, qty: 31.91, bars: 2, net: 94.76, pct: 0.99 },
+  { n: 3, side: "LONG", entry: "Jul 6, 07:00", entryPx: 318.75, exit: "Jul 6, 09:00", exitPx: 321.41, qty: 31.64, bars: 2, net: 73.98, pct: 0.73 },
+  { n: 4, side: "LONG", entry: "Jul 8, 17:00", entryPx: 315.65, exit: "Jul 9, 19:00", exitPx: 317.21, qty: 32.19, bars: 2, net: 40.03, pct: 0.39 },
+  { n: 5, side: "LONG", entry: "Jul 14, 15:00", entryPx: 310.2, exit: "Jul 14, 17:00", exitPx: 312.85, qty: 32.88, bars: 2, net: 76.95, pct: 0.75 },
+]
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-[#0d1218] p-4">
+      <p className="text-[11px] uppercase tracking-wider text-zinc-500">{label}</p>
+      <p
+        className={
+          tone === "up"
+            ? "mt-1 text-xl font-semibold text-emerald-400"
+            : tone === "down"
+              ? "mt-1 text-xl font-semibold text-red-400"
+              : "mt-1 text-xl font-semibold text-zinc-100"
+        }
+      >
+        {value}
+      </p>
+    </div>
+  )
+}
 
 export default function BacktestReportPage() {
-  const { toast } = useToast()
-
-  const equityData = [
-    { name: "Day 1", equity: 10000 },
-    { name: "Day 2", equity: 10050 },
-    { name: "Day 3", equity: 9980 },
-    { name: "Day 4", equity: 10120 },
-    { name: "Day 5", equity: 10300 },
-    { name: "Day 6", equity: 10250 },
-    { name: "Day 7", equity: 10450 },
-    { name: "Day 8", equity: 10380 },
-    { name: "Day 9", equity: 10550 },
-    { name: "Day 10", equity: 10700 },
-  ]
-
-  const tradeDistributionData = [
-    { name: "Wins", value: 70, color: "hsl(var(--spotify-green))" },
-    { name: "Losses", value: 30, color: "hsl(var(--destructive-foreground))" },
-  ]
-
-  const profitPerTradeData = [
-    { range: "$0-10", count: 15 },
-    { range: "$10-20", count: 25 },
-    { range: "$20-30", count: 18 },
-    { range: "$30-40", count: 10 },
-    { range: "$40+", count: 5 },
-  ]
-
-  const dailyPerformance = [
-    { day: "Mon", wins: 15, losses: 8 },
-    { day: "Tue", wins: 12, losses: 10 },
-    { day: "Wed", wins: 18, losses: 5 },
-    { day: "Thu", wins: 10, losses: 12 },
-    { day: "Fri", wins: 20, losses: 6 },
-  ]
-
-  const hourlyPerformance = [
-    { hour: "00-04", wins: 5, losses: 3 },
-    { hour: "04-08", wins: 8, losses: 5 },
-    { hour: "08-12", wins: 12, losses: 4 },
-    { hour: "12-16", wins: 10, losses: 7 },
-    { hour: "16-20", wins: 7, losses: 9 },
-    { hour: "20-24", wins: 3, losses: 2 },
-  ]
-
-  const marketSessions = [
-    { session: "London", profit: 800 },
-    { session: "New York", profit: 1200 },
-    { session: "Tokyo", profit: 300 },
-    { session: "Sydney", profit: 150 },
-  ]
-
-  const profitFactor = 1.85
-  const totalProfit = equityData[equityData.length - 1].equity - equityData[0].equity
-  const winningDays = 7
-  const losingDays = 3
-  const winningHours = "08:00 - 12:00"
-  const losingHours = "16:00 - 20:00"
-
-  const suggestedImprovements = [
-    "Consider tightening stop-loss during volatile periods.",
-    "Explore adding a volume filter to entry conditions.",
-    "Optimize take-profit levels for trades during the New York session.",
-    "Review performance on Thursdays, as it shows higher loss rates.",
-    "Test with a slightly longer Moving Average period for trend confirmation.",
-  ]
-
   return (
-    <div className="min-h-screen bg-spotify-black font-sans text-spotify-text-primary py-8">
-      <div className="container mx-auto max-w-6xl px-4">
-        <h1 className="font-display text-3xl font-bold text-spotify-text-primary mb-4 animate-fade-in-up">
-          Backtest Report: TrendFollower v2
-        </h1>
-        <p className="text-spotify-text-secondary text-sm mb-8 animate-fade-in-up animation-delay-200">
-          Detailed analysis of your bot's performance from 2023-01-01 to 2023-12-31.
-        </p>
+    <div className="min-h-screen bg-[#070a0e] py-8 text-zinc-100">
+      <div className="container mx-auto max-w-7xl px-4 space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-xs font-bold">
+                BF
+              </span>
+              <h1 className="text-2xl font-bold">BNBUSDT.P</h1>
+              <Badge className="bg-zinc-800 text-zinc-300">120</Badge>
+            </div>
+            <p className="mt-1 text-sm text-zinc-500">Jun 29, 2021 — Sep 28, 2026 · 22,981 bars</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <Badge className="bg-emerald-500/15 text-emerald-400 border-0">PUBLIC</Badge>
+              <span className="text-zinc-500">Strategy by Anonymous · unattributed</span>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <Badge className="bg-emerald-500/15 text-emerald-400 border-0 text-sm">+19978.73%</Badge>
+            <Badge className="bg-zinc-800 text-zinc-300">ENGINE 387MS</Badge>
+            <Button className="bg-orange-500 hover:bg-orange-400 text-black">Upgrade to fork</Button>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold text-spotify-text-primary">Equity Curve</CardTitle>
-              <CardDescription className="text-sm text-spotify-text-secondary">
-                Account balance over time.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{
-                  equity: {
-                    label: "Equity",
-                    color: "hsl(var(--spotify-green))",
-                  },
-                }}
-                className="h-[250px]"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsLineChart data={equityData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
-                    <XAxis dataKey="name" stroke="hsl(var(--spotify-text-secondary))" />
-                    <YAxis stroke="hsl(var(--spotify-text-secondary))" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line type="monotone" dataKey="equity" stroke="var(--color-equity)" strokeWidth={2} dot={false} />
-                  </RechartsLineChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+        <div className="rounded-xl border border-zinc-800 bg-[#0d1218] p-4">
+          <p className="text-[11px] uppercase tracking-wider text-zinc-500">Iterations & forks</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Badge className="bg-violet-600/30 text-violet-200">v1 MACD-CCI ATR Trail · +19978.73%</Badge>
+            <Badge className="bg-zinc-800 text-zinc-400">v1 MACD-CCI ATR Trail BTC · no backtest</Badge>
+            <Badge className="bg-zinc-800 text-emerald-300">v2 MACD-CCI ATR Trail BTC · +760.17%</Badge>
+          </div>
+        </div>
 
-          <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold text-spotify-text-primary">Trade Distribution</CardTitle>
-              <CardDescription className="text-sm text-spotify-text-secondary">
-                Winning vs. Losing Trades.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center items-center h-[250px]">
-              <ChartContainer
-                config={{
-                  wins: {
-                    label: "Wins",
-                    color: "hsl(var(--spotify-green))",
-                  },
-                  losses: {
-                    label: "Losses",
-                    color: "hsl(var(--destructive-foreground))",
-                  },
-                }}
-                className="h-[200px] w-[200px]"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={tradeDistributionData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      label
-                    >
-                      {tradeDistributionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Stat label="Net P&L" value="$1,997,873.05" tone="up" />
+          <Stat label="Max Drawdown" value="-6.48%" tone="down" />
+          <Stat label="Total Trades" value="1432" />
+          <Stat label="Win Rate" value="55.1%" tone="up" />
+          <Stat label="Profit Factor" value="10.35" />
+        </div>
 
-          <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold text-spotify-text-primary">
-                Profit Per Trade Distribution
-              </CardTitle>
-              <CardDescription className="text-sm text-spotify-text-secondary">
-                Frequency of profit ranges.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{
-                  count: {
-                    label: "Count",
-                    color: "hsl(var(--spotify-green))",
-                  },
-                }}
-                className="h-[250px]"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={profitPerTradeData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
-                    <XAxis dataKey="range" stroke="hsl(var(--spotify-text-secondary))" />
-                    <YAxis stroke="hsl(var(--spotify-text-secondary))" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="count" fill="var(--color-count)" />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+        <div className="rounded-xl border border-zinc-800 bg-[#0d1218] p-4">
+          <p className="text-[11px] uppercase tracking-wider text-zinc-500">Equity curve</p>
+          <div className="mt-2 h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={equity}>
+                <defs>
+                  <linearGradient id="eq" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" />
+                <XAxis dataKey="t" stroke="#6b7280" fontSize={11} />
+                <YAxis stroke="#6b7280" fontSize={11} />
+                <Tooltip contentStyle={{ background: "#0d1218", border: "1px solid #27272a" }} />
+                <Area type="monotone" dataKey="equity" stroke="#a78bfa" fill="url(#eq)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-          <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold text-spotify-text-primary">Key Performance Stats</CardTitle>
-              <CardDescription className="text-sm text-spotify-text-secondary">
-                Overall metrics for the backtest.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2 text-sm text-spotify-text-primary">
-              <p>
-                <span className="font-medium">Total Profit:</span>{" "}
-                <span className={totalProfit >= 0 ? "text-spotify-green" : "text-destructive-foreground"}>
-                  {totalProfit.toFixed(2)} KES
-                </span>
-              </p>
-              <p>
-                <span className="font-medium">Profit Factor:</span> {profitFactor.toFixed(2)}
-              </p>
-              <p>
-                <span className="font-medium">Winning Days:</span> {winningDays}
-              </p>
-              <p>
-                <span className="font-medium">Losing Days:</span> {losingDays}
-              </p>
-              <p>
-                <span className="font-medium">Best Winning Hours:</span> {winningHours}
-              </p>
-              <p>
-                <span className="font-medium">Worst Losing Hours:</span> {losingHours}
-              </p>
-            </CardContent>
-          </Card>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-zinc-800 bg-[#0d1218] p-4">
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500">Returns</p>
+            <table className="mt-3 w-full text-sm">
+              <thead>
+                <tr className="text-zinc-500">
+                  <th className="text-left font-normal"></th>
+                  <th className="text-right font-normal">ALL</th>
+                  <th className="text-right font-normal">LONG</th>
+                  <th className="text-right font-normal">SHORT</th>
+                </tr>
+              </thead>
+              <tbody className="text-zinc-200">
+                <tr>
+                  <td className="py-1">Net P&L</td>
+                  <td className="text-right text-emerald-400">$1,997,873</td>
+                  <td className="text-right">$1,050,280</td>
+                  <td className="text-right">$947,593</td>
+                </tr>
+                <tr>
+                  <td className="py-1">Net P&L %</td>
+                  <td className="text-right text-emerald-400">+19978.73%</td>
+                  <td className="text-right">+10502.80%</td>
+                  <td className="text-right">+9475.93%</td>
+                </tr>
+                <tr>
+                  <td className="py-1">Profit Factor</td>
+                  <td className="text-right">10.35</td>
+                  <td className="text-right">26.63</td>
+                  <td className="text-right">19.20</td>
+                </tr>
+                <tr>
+                  <td className="py-1">Win Rate</td>
+                  <td className="text-right">55.1%</td>
+                  <td className="text-right">67.5%</td>
+                  <td className="text-right">46.4%</td>
+                </tr>
+                <tr>
+                  <td className="py-1">Trades</td>
+                  <td className="text-right">1432</td>
+                  <td className="text-right">588</td>
+                  <td className="text-right">844</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-          <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold text-spotify-text-primary">Daily Performance</CardTitle>
-              <CardDescription className="text-sm text-spotify-text-secondary">
-                Wins and losses by day of the week.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{
-                  wins: { label: "Wins", color: "hsl(var(--spotify-green))" },
-                  losses: { label: "Losses", color: "hsl(var(--destructive-foreground))" },
-                }}
-                className="h-[250px]"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={dailyPerformance}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
-                    <XAxis dataKey="day" stroke="hsl(var(--spotify-text-secondary))" />
-                    <YAxis stroke="hsl(var(--spotify-text-secondary))" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
-                    <Bar dataKey="wins" fill="var(--color-wins)" name="Wins" />
-                    <Bar dataKey="losses" fill="var(--color-losses)" name="Losses" />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+          <div className="rounded-xl border border-zinc-800 bg-[#0d1218] p-4">
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500">Profit structure</p>
+            <div className="mt-4 space-y-3 text-sm">
+              {[
+                ["Gross Profit", "$2,211,499", "bg-emerald-500", 100],
+                ["Gross Loss", "-$213,626", "bg-red-500", 10],
+                ["Commission", "-$505,284", "bg-amber-500", 23],
+                ["Net P&L", "$1,997,873", "bg-violet-500", 90],
+              ].map(([label, val, color, w]) => (
+                <div key={label as string}>
+                  <div className="mb-1 flex justify-between">
+                    <span className="text-zinc-400">{label}</span>
+                    <span>{val}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-zinc-900">
+                    <div className={`h-2 rounded-full ${color}`} style={{ width: `${w}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
-          <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold text-spotify-text-primary">Hourly Performance</CardTitle>
-              <CardDescription className="text-sm text-spotify-text-secondary">
-                Wins and losses by hour of the day.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{
-                  wins: { label: "Wins", color: "hsl(var(--spotify-green))" },
-                  losses: { label: "Losses", color: "hsl(var(--destructive-foreground))" },
-                }}
-                className="h-[250px]"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={hourlyPerformance}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
-                    <XAxis dataKey="hour" stroke="hsl(var(--spotify-text-secondary))" />
-                    <YAxis stroke="hsl(var(--spotify-text-secondary))" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
-                    <Bar dataKey="wins" fill="var(--color-wins)" name="Wins" />
-                    <Bar dataKey="losses" fill="var(--color-losses)" name="Losses" />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-zinc-800 bg-[#0d1218] p-4">
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500">Risk-adjusted performance</p>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-zinc-500">Sharpe</p>
+                <p className="text-2xl font-semibold">6.69</p>
+              </div>
+              <div>
+                <p className="text-zinc-500">Sortino</p>
+                <p className="text-2xl font-semibold">8.98</p>
+              </div>
+              <div>
+                <p className="text-zinc-500">Max DD</p>
+                <p className="text-2xl font-semibold text-red-400">-6.48%</p>
+              </div>
+              <div>
+                <p className="text-zinc-500">Initial capital</p>
+                <p className="text-2xl font-semibold">$10,000</p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-[#0d1218] p-4 flex flex-col items-center justify-center">
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500 self-start">Win / loss split</p>
+            <div className="h-40 w-40">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "Wins", value: 789 },
+                      { name: "Losses", value: 643 },
+                    ]}
+                    dataKey="value"
+                    innerRadius={45}
+                    outerRadius={70}
+                    paddingAngle={2}
+                  >
+                    <Cell fill="#34d399" />
+                    <Cell fill="#ef4444" />
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-sm text-zinc-400">55.1% win rate · 789W / 643L</p>
+          </div>
+        </div>
 
-          <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold text-spotify-text-primary">
-                Profit by Market Session
-              </CardTitle>
-              <CardDescription className="text-sm text-spotify-text-secondary">
-                Performance across major trading sessions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{
-                  profit: {
-                    label: "Profit",
-                    color: "hsl(var(--spotify-green))",
-                  },
-                }}
-                className="h-[250px]"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={marketSessions}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--spotify-grey))" />
-                    <XAxis dataKey="session" stroke="hsl(var(--spotify-text-secondary))" />
-                    <YAxis stroke="hsl(var(--spotify-text-secondary))" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="profit" fill="var(--color-profit)" />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+        <div className="rounded-xl border border-zinc-800 bg-[#0d1218] p-4">
+          <p className="text-[11px] uppercase tracking-wider text-zinc-500">P&L distribution</p>
+          <div className="mt-2 h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={pnlDist}>
+                <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" />
+                <XAxis dataKey="bin" stroke="#6b7280" fontSize={11} />
+                <YAxis stroke="#6b7280" fontSize={11} />
+                <Tooltip contentStyle={{ background: "#0d1218", border: "1px solid #27272a" }} />
+                <Bar dataKey="n">
+                  {pnlDist.map((d, i) => (
+                    <Cell key={i} fill={d.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-          <Card className="shadow-sm border-spotify-grey bg-spotify-dark-grey p-4 animate-fade-in-up rounded-lg col-span-full">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold text-spotify-text-primary flex items-center">
-                <Lightbulb className="mr-2 h-5 w-5 text-spotify-green" /> Suggested Improvements
-              </CardTitle>
-              <CardDescription className="text-sm text-spotify-text-secondary">
-                AI-powered recommendations to optimize your strategy.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2 text-sm text-spotify-text-primary">
-              <ul className="list-disc pl-5 space-y-1">
-                {suggestedImprovements.map((suggestion, index) => (
-                  <li key={index}>{suggestion}</li>
-                ))}
-              </ul>
-              <Button
-                onClick={() =>
-                  toast({
-                    title: "AI Optimization",
-                    description: "AI-driven optimization tools coming soon!",
-                    variant: "default",
-                  })
-                }
-                className="bg-spotify-green text-spotify-black hover:bg-spotify-green/90 transition-all duration-300 hover:scale-105 rounded-full mt-4"
-              >
-                <Sparkles className="mr-2 h-4 w-4" /> Get More AI Suggestions
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="rounded-xl border border-zinc-800 bg-[#0d1218] p-4 overflow-x-auto">
+          <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">Trade list</p>
+          <table className="w-full min-w-[720px] text-left text-xs">
+            <thead className="text-zinc-500">
+              <tr>
+                <th className="pb-2">#</th>
+                <th>SIDE</th>
+                <th>ENTRY</th>
+                <th>ENTRY $</th>
+                <th>EXIT</th>
+                <th>EXIT $</th>
+                <th>QTY</th>
+                <th>BARS</th>
+                <th>NET P&L</th>
+                <th>P&L %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trades.map((t) => (
+                <tr key={t.n} className="border-t border-zinc-800/80">
+                  <td className="py-2">{t.n}</td>
+                  <td className={t.side === "LONG" ? "text-emerald-400" : "text-red-400"}>{t.side}</td>
+                  <td>{t.entry}</td>
+                  <td>${t.entryPx}</td>
+                  <td>{t.exit}</td>
+                  <td>${t.exitPx}</td>
+                  <td>{t.qty}</td>
+                  <td>{t.bars}</td>
+                  <td className={t.net >= 0 ? "text-emerald-400" : "text-red-400"}>${t.net}</td>
+                  <td className={t.pct >= 0 ? "text-emerald-400" : "text-red-400"}>{t.pct}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex gap-3">
+          <Link href="/strategies">
+            <Button variant="outline" className="border-zinc-700">
+              Back to browse
+            </Button>
+          </Link>
+          <Link href="/bots/create">
+            <Button className="bg-violet-600 hover:bg-violet-500">Fork into builder</Button>
+          </Link>
         </div>
       </div>
-      <footer className="py-8 text-center text-xs text-spotify-text-secondary border-t border-spotify-grey bg-spotify-dark-grey mt-8">
-        <div className="container mx-auto max-w-6xl px-4">
-          &copy; {new Date().getFullYear()} Momo. All rights reserved. Made by{" "}
-          <a
-            href="https://hummzer.vercel.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-spotify-green hover:underline"
-          >
-            Hummzer
-          </a>
-          .
-        </div>
-      </footer>
     </div>
   )
 }
