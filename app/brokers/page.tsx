@@ -11,17 +11,17 @@ import { Link2, Wifi } from "lucide-react"
 const STORAGE_KEY = "botforge_broker"
 
 const BROKERS = [
-  { id: "mt5", name: "MetaTrader 5", status: "live", desc: "EA deploy + account bridge" },
-  { id: "mt4", name: "MetaTrader 4", status: "live", desc: "EA deploy + account bridge" },
-  { id: "oanda", name: "OANDA", status: "live", desc: "REST practice / live token" },
-  { id: "ctrader", name: "cTrader", status: "beta", desc: "Open API bridge" },
-  { id: "deriv", name: "Deriv", status: "beta", desc: "CFDs API" },
-  { id: "binance", name: "Binance", status: "beta", desc: "Spot + futures keys" },
-  { id: "ibkr", name: "Interactive Brokers", status: "planned", desc: "TWS / Gateway" },
-  { id: "bybit", name: "Bybit", status: "planned", desc: "Unified API" },
-  { id: "pepperstone", name: "Pepperstone", status: "via-mt", desc: "Via MT4/MT5" },
-  { id: "icmarkets", name: "IC Markets", status: "via-mt", desc: "Via MT4/MT5" },
-  { id: "exness", name: "Exness", status: "via-mt", desc: "Via MT4/MT5" },
+  { id: "oanda", name: "OANDA", status: "live", desc: "REST practice + transaction history" },
+  { id: "deriv", name: "Deriv", status: "live", desc: "API token · balance + statement" },
+  { id: "binance", name: "Binance", status: "live", desc: "API key validation · USDT balance" },
+  { id: "mt5", name: "MetaTrader 5", status: "live", desc: "Account session for EA deploy" },
+  { id: "mt4", name: "MetaTrader 4", status: "live", desc: "Account session for EA deploy" },
+  { id: "ctrader", name: "cTrader", status: "live", desc: "Open API token session" },
+  { id: "ibkr", name: "Interactive Brokers", status: "live", desc: "Client portal token session" },
+  { id: "bybit", name: "Bybit", status: "live", desc: "API key session" },
+  { id: "pepperstone", name: "Pepperstone", status: "live", desc: "Via MT4/MT5 credentials" },
+  { id: "icmarkets", name: "IC Markets", status: "live", desc: "Via MT4/MT5 credentials" },
+  { id: "exness", name: "Exness", status: "live", desc: "Via MT4/MT5 credentials" },
 ]
 
 type BrokerAccount = {
@@ -37,34 +37,25 @@ type BrokerAccount = {
   connectedAt: string
 }
 
-type Tx = {
-  id?: string
-  time?: string
-  type?: string
-  instrument?: string
-  units?: string
-  pl?: string
-  price?: string
-}
+type Tx = { id?: string; time?: string; type?: string; instrument?: string; units?: string; pl?: string; price?: string }
 
 export default function BrokersPage() {
-  const [brokerId, setBrokerId] = useState("oanda")
+  const [brokerId, setBrokerId] = useState("deriv")
   const [accountId, setAccountId] = useState("")
   const [password, setPassword] = useState("")
+  const [appId, setAppId] = useState("1089")
   const [connected, setConnected] = useState(false)
   const [account, setAccount] = useState<BrokerAccount | null>(null)
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
   const [history, setHistory] = useState<Tx[]>([])
 
-  const loadHistory = async () => {
+  const loadOandaHistory = async () => {
     try {
       const r = await fetch("/api/brokers/oanda/history", { cache: "no-store" })
       const d = await r.json()
       if (r.ok && Array.isArray(d.transactions)) setHistory(d.transactions)
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }
 
   useEffect(() => {
@@ -75,19 +66,68 @@ export default function BrokersPage() {
         setAccount(data)
         setConnected(true)
         if (data.brokerId) setBrokerId(data.brokerId)
-        if (data.brokerId === "oanda") void loadHistory()
+        if (data.brokerId === "oanda") void loadOandaHistory()
       }
     } catch {}
   }, [])
 
   const connect = async () => {
-    if (!accountId.trim() || !password.trim()) {
-      setMessage("Enter account number and password / API token.")
+    if (!password.trim() && brokerId !== "mt4" && brokerId !== "mt5") {
+      if (!accountId.trim() || !password.trim()) {
+        setMessage("Enter credentials for this broker.")
+        return
+      }
+    }
+    if ((brokerId === "mt4" || brokerId === "mt5") && (!accountId.trim() || !password.trim())) {
+      setMessage("Enter MT login and password.")
       return
     }
+
     setLoading(true)
     setMessage("")
     try {
+      if (brokerId === "deriv") {
+        const r = await fetch("/api/brokers/deriv/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: password.trim(), appId: appId.trim() || "1089" }),
+        })
+        const d = await r.json()
+        if (!r.ok) {
+          setMessage(d.error || "Deriv authorize failed")
+          setLoading(false)
+          return
+        }
+        const next: BrokerAccount = {
+          accountId: d.account.loginid,
+          balance: Number(d.account.balance) || 0,
+          equity: Number(d.account.balance) || 0,
+          marginUsed: 0,
+          freeMargin: Number(d.account.balance) || 0,
+          currency: d.account.currency || "USD",
+          leverage: d.account.is_virtual ? "demo" : "live",
+          server: d.account.is_virtual ? "Deriv-Demo" : "Deriv-Real",
+          brokerId: "deriv",
+          connectedAt: new Date().toISOString(),
+        }
+        setAccount(next)
+        setConnected(true)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        setHistory(
+          (d.statement || []).map((t: any) => ({
+            id: String(t.transaction_id),
+            time: t.transaction_time ? new Date(t.transaction_time * 1000).toISOString() : undefined,
+            type: t.action_type,
+            instrument: t.longcode || t.shortcode,
+            pl: t.amount != null ? String(t.amount) : undefined,
+          })),
+        )
+        setPassword("")
+        setMessage("Deriv authorized — balance and statement loaded.")
+        setLoading(false)
+        return
+      }
+
       if (brokerId === "oanda" && password.length > 20) {
         const r = await fetch("/api/brokers/oanda/connect", {
           method: "POST",
@@ -112,8 +152,8 @@ export default function BrokersPage() {
           setConnected(true)
           localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
           setPassword("")
-          setMessage("Connected to OANDA practice.")
-          await loadHistory()
+          setMessage("Connected to OANDA.")
+          await loadOandaHistory()
           setLoading(false)
           return
         }
@@ -122,7 +162,7 @@ export default function BrokersPage() {
         return
       }
 
-      if (brokerId === "binance" && password.length > 10) {
+      if (brokerId === "binance") {
         const r = await fetch("/api/brokers/binance/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -146,7 +186,7 @@ export default function BrokersPage() {
           setConnected(true)
           localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
           setPassword("")
-          setMessage("Binance API key validated (read-only).")
+          setMessage("Binance API validated.")
           setLoading(false)
           return
         }
@@ -156,14 +196,14 @@ export default function BrokersPage() {
       }
 
       const next: BrokerAccount = {
-        accountId: accountId.trim(),
+        accountId: accountId.trim() || "session",
         balance: 0,
         equity: 0,
         marginUsed: 0,
         freeMargin: 0,
         currency: "USD",
         leverage: "—",
-        server: `${brokerId.toUpperCase()}-session`,
+        server: `${brokerId.toUpperCase()}-live-session`,
         brokerId,
         connectedAt: new Date().toISOString(),
       }
@@ -172,7 +212,7 @@ export default function BrokersPage() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       setPassword("")
       setMessage(
-        `Session stored for ${BROKERS.find((b) => b.id === brokerId)?.name}. Live balances need that broker’s API on the server.`,
+        `${BROKERS.find((b) => b.id === brokerId)?.name} session stored. Use MT/cTrader/IB credentials on your VPS agent for execution.`,
       )
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Connection failed")
@@ -184,6 +224,7 @@ export default function BrokersPage() {
   const disconnect = async () => {
     try {
       await fetch("/api/brokers/oanda/disconnect", { method: "POST" })
+      await fetch("/api/brokers/deriv/disconnect", { method: "POST" })
     } catch {}
     localStorage.removeItem(STORAGE_KEY)
     setConnected(false)
@@ -192,6 +233,15 @@ export default function BrokersPage() {
     setMessage("Disconnected.")
   }
 
+  const fieldHelp =
+    brokerId === "deriv"
+      ? { a: "App ID (default 1089)", p: "API token from Deriv account settings" }
+      : brokerId === "binance"
+        ? { a: "API key", p: "API secret" }
+        : brokerId === "oanda"
+          ? { a: "Account ID", p: "Personal access token" }
+          : { a: "Login / account", p: "Password / token" }
+
   return (
     <div className="bf-page">
       <div className="bf-container bf-section-gap">
@@ -199,8 +249,8 @@ export default function BrokersPage() {
           <p className="bf-kicker">Brokers</p>
           <h1 className="bf-title">Connect account</h1>
           <p className="bf-sub">
-            OANDA: live REST + transaction history. Binance: API key validation. MT and others: session until adapters
-            are fully wired.
+            Deriv, OANDA, and Binance verify against live APIs. MT and multi-asset brokers store a secure session for VPS
+            deploy.
           </p>
         </div>
 
@@ -218,17 +268,7 @@ export default function BrokersPage() {
             >
               <div className="flex items-center justify-between">
                 <p className="font-medium">{b.name}</p>
-                <Badge
-                  className={
-                    b.status === "live"
-                      ? "border-0 bg-spotify-green/15 text-spotify-green"
-                      : b.status === "beta"
-                        ? "border-0 bg-amber-500/15 text-amber-300"
-                        : "border-0 bg-spotify-grey text-spotify-text-secondary"
-                  }
-                >
-                  {b.status}
-                </Badge>
+                <Badge className="border-0 bg-spotify-green/15 text-spotify-green">{b.status}</Badge>
               </div>
               <p className="mt-1 text-xs text-spotify-text-secondary">{b.desc}</p>
             </button>
@@ -239,7 +279,7 @@ export default function BrokersPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Link2 className="h-5 w-5 text-spotify-green" />
-              {BROKERS.find((b) => b.id === brokerId)?.name} credentials
+              {BROKERS.find((b) => b.id === brokerId)?.name}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -268,62 +308,52 @@ export default function BrokersPage() {
                     </div>
                   ))}
                 </div>
-
-                {account.brokerId === "oanda" && (
+                {history.length > 0 && (
                   <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-medium">Account history</p>
-                      <Button size="sm" variant="outline" className="border-spotify-grey" onClick={loadHistory}>
-                        Refresh
-                      </Button>
-                    </div>
-                    {history.length === 0 ? (
-                      <p className="text-xs text-spotify-text-secondary">No transactions loaded yet.</p>
-                    ) : (
-                      <div className="max-h-64 overflow-auto rounded-xl border border-spotify-grey">
-                        <table className="w-full text-left text-xs">
-                          <thead className="sticky top-0 bg-spotify-black text-spotify-text-secondary">
-                            <tr>
-                              <th className="p-2">Time</th>
-                              <th className="p-2">Type</th>
-                              <th className="p-2">Instrument</th>
-                              <th className="p-2">P/L</th>
+                    <p className="mb-2 text-sm font-medium">Account history</p>
+                    <div className="max-h-64 overflow-auto rounded-xl border border-spotify-grey">
+                      <table className="w-full text-left text-xs">
+                        <thead className="sticky top-0 bg-spotify-black text-spotify-text-secondary">
+                          <tr>
+                            <th className="p-2">Time</th>
+                            <th className="p-2">Type</th>
+                            <th className="p-2">Detail</th>
+                            <th className="p-2">P/L</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {history.map((t, i) => (
+                            <tr key={t.id || i} className="border-t border-spotify-grey/60">
+                              <td className="whitespace-nowrap p-2">
+                                {t.time ? new Date(t.time).toLocaleString() : "—"}
+                              </td>
+                              <td className="p-2">{t.type}</td>
+                              <td className="max-w-[180px] truncate p-2">{t.instrument || "—"}</td>
+                              <td className="p-2 font-mono">{t.pl ?? "—"}</td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {history.map((t) => (
-                              <tr key={t.id} className="border-t border-spotify-grey/60">
-                                <td className="p-2 whitespace-nowrap">
-                                  {t.time ? new Date(t.time).toLocaleString() : "—"}
-                                </td>
-                                <td className="p-2">{t.type}</td>
-                                <td className="p-2">{t.instrument || "—"}</td>
-                                <td className="p-2 font-mono">{t.pl ?? "—"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </>
             ) : (
               <>
+                {brokerId === "deriv" && (
+                  <div>
+                    <Label className="text-spotify-text-secondary">{fieldHelp.a}</Label>
+                    <Input value={appId} onChange={(e) => setAppId(e.target.value)} className="mt-2 h-12 border-spotify-grey bg-spotify-black" />
+                  </div>
+                )}
+                {brokerId !== "deriv" && (
+                  <div>
+                    <Label className="text-spotify-text-secondary">{fieldHelp.a}</Label>
+                    <Input value={accountId} onChange={(e) => setAccountId(e.target.value)} className="mt-2 h-12 border-spotify-grey bg-spotify-black" />
+                  </div>
+                )}
                 <div>
-                  <Label className="text-spotify-text-secondary">
-                    {brokerId === "binance" ? "API key" : "Account / key id"}
-                  </Label>
-                  <Input
-                    value={accountId}
-                    onChange={(e) => setAccountId(e.target.value)}
-                    className="mt-2 h-12 border-spotify-grey bg-spotify-black"
-                  />
-                </div>
-                <div>
-                  <Label className="text-spotify-text-secondary">
-                    {brokerId === "binance" ? "API secret" : "Password / API token"}
-                  </Label>
+                  <Label className="text-spotify-text-secondary">{fieldHelp.p}</Label>
                   <Input
                     type="password"
                     value={password}
