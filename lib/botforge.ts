@@ -4,8 +4,12 @@ export type Bot = {
   id: string
   name: string
   language: string
+  /** Active run language (may differ from which codes exist). */
+  runLanguage: string
   status: BotStatus
   code: string
+  /** All generated sources keyed by display language name. */
+  codes: Record<string, string>
   description: string
   symbol: string
   timeframe: string
@@ -14,6 +18,8 @@ export type Bot = {
   lastRun: string | null
   vpsUrl?: string
   notes?: string
+  aiProvider?: string
+  prompt?: string
 }
 
 const BOTS_KEY = "botforge:bots"
@@ -22,11 +28,37 @@ const TV_KEY = "botforge:tradingview"
 
 export const defaultBots: Bot[] = []
 
+function normalizeBot(raw: Partial<Bot> & { id: string }): Bot {
+  const codes = raw.codes && Object.keys(raw.codes).length ? raw.codes : raw.code ? { [raw.language || "Python"]: raw.code } : {}
+  const language = raw.language || Object.keys(codes)[0] || "Python"
+  const code = raw.code || codes[language] || Object.values(codes)[0] || ""
+  return {
+    id: raw.id,
+    name: raw.name || "Untitled",
+    language,
+    runLanguage: raw.runLanguage || language,
+    status: raw.status || "Ready",
+    code,
+    codes,
+    description: raw.description || "",
+    symbol: raw.symbol || "EURUSD",
+    timeframe: raw.timeframe || "H1",
+    indicators: raw.indicators || [],
+    createdAt: raw.createdAt || new Date().toISOString(),
+    lastRun: raw.lastRun ?? null,
+    vpsUrl: raw.vpsUrl,
+    notes: raw.notes,
+    aiProvider: raw.aiProvider,
+    prompt: raw.prompt,
+  }
+}
+
 export function readBots(): Bot[] {
   if (typeof window === "undefined") return defaultBots
   try {
     const raw = window.localStorage.getItem(BOTS_KEY)
-    return raw ? JSON.parse(raw) : defaultBots
+    const list = raw ? JSON.parse(raw) : defaultBots
+    return Array.isArray(list) ? list.map(normalizeBot) : defaultBots
   } catch {
     return defaultBots
   }
@@ -39,18 +71,22 @@ export function writeBots(bots: Bot[]) {
   }
 }
 
-export function createBot(input: Omit<Bot, "id" | "createdAt" | "lastRun">): Bot {
-  return {
+export function createBot(
+  input: Omit<Bot, "id" | "createdAt" | "lastRun"> & Partial<Pick<Bot, "codes" | "runLanguage">>,
+): Bot {
+  const codes = input.codes || (input.code ? { [input.language]: input.code } : {})
+  return normalizeBot({
     ...input,
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
     lastRun: null,
-  }
+    codes,
+    runLanguage: input.runLanguage || input.language,
+  })
 }
 
 export function addBot(bot: Bot) {
-  const bots = readBots()
-  writeBots([bot, ...bots])
+  writeBots([bot, ...readBots()])
   return bot
 }
 
@@ -63,7 +99,6 @@ export type Candle = {
   volume: number
 }
 
-/** Prefer our server proxy; fall back to public Binance. */
 export async function fetchBinanceCandles(symbol = "BTCUSDT", interval = "1h", limit = 500): Promise<Candle[]> {
   const qs = `symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`
   try {
@@ -179,7 +214,6 @@ export function runSmaRsiBacktest(candles: Candle[], params: BacktestParams = {}
   const takePct = params.takePct ?? 2
   const mode = params.mode ?? "backtest"
   const forwardBars = params.forwardBars ?? Math.floor(candles.length * 0.2)
-
   const startIdx =
     mode === "forward" ? Math.max(smaPeriod + rsiPeriod, candles.length - forwardBars) : smaPeriod + 1
 
@@ -310,8 +344,7 @@ export function optimizeSmaRsi(
 export function saveBacktestResult(result: BacktestResult) {
   if (typeof window === "undefined") return
   const prev = readBacktestResults()
-  const next = [result, ...prev].slice(0, 40)
-  window.localStorage.setItem(RESULTS_KEY, JSON.stringify(next))
+  window.localStorage.setItem(RESULTS_KEY, JSON.stringify([result, ...prev].slice(0, 40)))
   window.dispatchEvent(new Event("botforge-workspace-updated"))
 }
 
