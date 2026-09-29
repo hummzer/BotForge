@@ -4,10 +4,7 @@ import { useEffect, useState } from "react"
 import { TradingViewChart } from "@/components/tradingview-chart"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { readTradingViewUsername, writeTradingViewUsername } from "@/lib/botforge"
-import { ExternalLink } from "lucide-react"
+import { ExternalLink, LogIn } from "lucide-react"
 
 const presets = [
   "OANDA:XAUUSD",
@@ -18,18 +15,22 @@ const presets = [
   "NASDAQ:NDX",
 ]
 
+const TV_SESSION = "botforge:tv_session"
+
 export default function ChartPage() {
   const [symbol, setSymbol] = useState("OANDA:XAUUSD")
-  const [tvUser, setTvUser] = useState("")
-  const [saved, setSaved] = useState("")
+  const [tvLinked, setTvLinked] = useState(false)
 
   useEffect(() => {
-    setTvUser(readTradingViewUsername())
+    setTvLinked(localStorage.getItem(TV_SESSION) === "1")
   }, [])
 
-  const saveTv = () => {
-    writeTradingViewUsername(tvUser.trim())
-    setSaved(tvUser.trim())
+  const openTradingViewAuth = () => {
+    // TradingView does not expose a public OAuth client for third-party apps without a partner agreement.
+    // Real sign-in happens on tradingview.com; after login, widgets respect the browser session cookies.
+    window.open("https://www.tradingview.com/accounts/signin/", "tv_auth", "noopener,noreferrer,width=520,height=720")
+    localStorage.setItem(TV_SESSION, "1")
+    setTvLinked(true)
   }
 
   return (
@@ -39,44 +40,31 @@ export default function ChartPage() {
           <p className="bf-kicker">Chart lab</p>
           <h1 className="bf-title">Market preview</h1>
           <p className="bf-sub">
-            Full TradingView advanced chart. Link your username for a quick jump to your saved layouts on TradingView.
+            Advanced chart widget. Sign in on TradingView in a secure popup so drawings and saved layouts from your TV
+            account can apply in-browser (requires TradingView session cookies).
           </p>
         </div>
 
-        <div className="bf-card-pad grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+        <div className="bf-card-pad flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Label className="text-spotify-text-secondary">TradingView username</Label>
-            <Input
-              value={tvUser}
-              onChange={(e) => setTvUser(e.target.value)}
-              placeholder="your_tv_handle"
-              className="mt-2 max-w-sm border-spotify-grey bg-spotify-black"
-            />
+            <p className="text-sm font-medium">TradingView account</p>
             <p className="mt-1 text-xs text-spotify-text-secondary">
-              Stored in this browser. Open your profile to use drawings/layouts you already own on TradingView.
+              {tvLinked
+                ? "Sign-in window was opened — complete login on TradingView, then reload the chart if needed."
+                : "No session marked yet. Use Sign in to authenticate on TradingView.com."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={saveTv} className="bf-btn-primary">
-              Save username
+            <Button onClick={openTradingViewAuth} className="bf-btn-primary">
+              <LogIn className="mr-2 h-4 w-4" /> Sign in to TradingView
             </Button>
-            {(saved || tvUser) && (
-              <a
-                href={`https://www.tradingview.com/u/${encodeURIComponent(saved || tvUser)}/`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bf-btn-ghost inline-flex items-center gap-1"
-              >
-                Open profile <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
             <a
-              href="https://www.tradingview.com/accounts/signin/"
+              href="https://www.tradingview.com/chart/"
               target="_blank"
               rel="noopener noreferrer"
               className="bf-btn-ghost inline-flex items-center gap-1"
             >
-              Sign in on TV <ExternalLink className="h-3.5 w-3.5" />
+              Open TV chart <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </div>
         </div>
