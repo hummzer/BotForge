@@ -8,8 +8,10 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 import { inter, orbitron, firaCode } from "@/lib/fonts"
 import { AuthProvider, useAuth } from "@/lib/auth-context"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { XauusdTicker } from "@/components/xauusd-ticker"
+import { Menu, X } from "lucide-react"
 
 const publicLinks = [
   { name: "Home", href: "/" },
@@ -17,25 +19,15 @@ const publicLinks = [
 ]
 
 const privateLinks = [
-  { name: "Browse Strategies", href: "/strategies" },
-  { name: "Strategy Report", href: "/backtest/report" },
-  { name: "My Bots", href: "/bots" },
-  { name: "Backtesting", href: "/backtest" },
+  { name: "Strategies", href: "/strategies" },
+  { name: "Bots", href: "/bots" },
+  { name: "Backtest", href: "/backtest" },
+  { name: "Chart", href: "/chart" },
   { name: "Journal", href: "/journal" },
   { name: "Brokers", href: "/brokers" },
-  { name: "Settings", href: "/settings" },
 ]
 
-const protectedPaths = [
-  "/strategies",
-  "/bots",
-  "/live-bots",
-  "/backtest",
-  "/journal",
-  "/brokers",
-  "/settings",
-  "/chart",
-]
+const protectedPaths = ["/strategies", "/bots", "/live-bots", "/backtest", "/journal", "/brokers", "/chart", "/settings"]
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -50,7 +42,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-spotify-black flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-spotify-black">
         <p className="font-display text-2xl text-spotify-green animate-pulse">BotForge</p>
       </div>
     )
@@ -61,48 +53,92 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 function Navigation() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const [open, setOpen] = useState(false)
   const links = user ? [...publicLinks, ...privateLinks] : publicLinks
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-spotify-grey bg-[#0b0f14]/95 py-3 backdrop-blur">
-      <div className="container mx-auto flex max-w-7xl flex-col items-center gap-3 px-4 md:flex-row md:justify-between">
-        <Link href="/" className="flex items-center gap-2 font-display text-xl font-bold text-white">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-sm">BF</span>
-          BotForge
-        </Link>
-        <nav className="flex flex-wrap justify-center gap-4 text-sm">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "rounded-full px-3 py-1.5 font-medium text-zinc-400 transition-colors hover:text-white",
-                (pathname === link.href || pathname.startsWith(link.href + "/")) &&
-                  "bg-violet-600/20 text-violet-300",
-              )}
-            >
-              {link.name}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex items-center gap-3">
-          {user ? (
-            <>
-              <span className="hidden text-sm text-zinc-400 sm:inline">{user.name}</span>
-              <Button variant="ghost" size="sm" onClick={logout} className="text-red-400 hover:text-red-300">
-                Logout
-              </Button>
-            </>
-          ) : (
-            <Link href="/login">
-              <Button size="sm" className="bg-violet-600 text-white hover:bg-violet-500">
-                Account
-              </Button>
-            </Link>
-          )}
+    <>
+      <div className="border-b border-spotify-grey/60 bg-spotify-dark-grey/90">
+        <div className="container mx-auto flex max-w-6xl items-center justify-between px-4 py-1.5">
+          <XauusdTicker compact />
+          <Link href="/chart" className="text-[11px] text-spotify-green hover:underline">
+            Open chart →
+          </Link>
         </div>
       </div>
-    </header>
+      <header className="sticky top-0 z-50 w-full border-b border-spotify-grey bg-spotify-dark-grey/95 backdrop-blur">
+        <div className="container mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+          <Link href="/" className="font-display text-xl font-bold text-spotify-green">
+            BotForge
+          </Link>
+
+          <nav className="hidden items-center gap-1 md:flex">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-sm font-medium text-spotify-text-secondary transition hover:text-spotify-green",
+                  (pathname === link.href || pathname.startsWith(link.href + "/")) &&
+                    "bg-spotify-green/15 text-spotify-green",
+                )}
+              >
+                {link.name}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <span className="hidden text-sm text-spotify-text-secondary sm:inline">{user.name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={logout}
+                  className="text-red-400 hover:bg-red-400/10 hover:text-red-300"
+                >
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <Link href="/login">
+                <Button size="sm" className="rounded-full bg-spotify-green text-spotify-black hover:bg-spotify-green/90">
+                  Sign in
+                </Button>
+              </Link>
+            )}
+            <button
+              type="button"
+              className="rounded-lg p-2 text-spotify-text-secondary md:hidden"
+              onClick={() => setOpen((v) => !v)}
+              aria-label="Menu"
+            >
+              {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
+        </div>
+        {open && (
+          <nav className="border-t border-spotify-grey px-4 py-3 md:hidden">
+            <div className="flex flex-col gap-1">
+              {links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "rounded-lg px-3 py-2 text-sm text-spotify-text-secondary",
+                    pathname === link.href && "bg-spotify-green/15 text-spotify-green",
+                  )}
+                >
+                  {link.name}
+                </Link>
+              ))}
+            </div>
+          </nav>
+        )}
+      </header>
+    </>
   )
 }
 
@@ -111,7 +147,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     <html lang="en" suppressHydrationWarning>
       <body
         className={cn(
-          "min-h-screen bg-[#070a0e] font-sans antialiased text-zinc-100 flex flex-col",
+          "flex min-h-screen flex-col bg-spotify-black font-sans text-spotify-text-primary antialiased",
           inter.variable,
           orbitron.variable,
           firaCode.variable,
