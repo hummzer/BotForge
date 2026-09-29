@@ -4,34 +4,56 @@ import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import ClientLayout from "./ClientLayout"
 
+const site = "https://bot-forge-ten.vercel.app"
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://bot-forge-ten.vercel.app"),
+  metadataBase: new URL(site),
   title: {
-    default: "BotForge | Build, Backtest & Monitor Trading Bots",
+    default: "BotForge | Build, Backtest & Deploy Trading Bots",
     template: "%s | BotForge",
   },
-  description: "BotForge is an algorithmic trading workspace for building trading bots, generating strategy code, backtesting real market data and monitoring live paper execution.",
+  description:
+    "BotForge is an algorithmic trading workspace: compile strategies into Python, MQL4, MQL5, Pine Script and more, backtest real market candles, journal trades, connect OANDA, and monitor paper bots.",
   keywords: [
-    "BotForge", "trading bot builder", "algorithmic trading", "AI trading bot",
-    "trading strategy backtesting", "crypto backtesting", "paper trading",
-    "real time market data", "Python trading bot", "MQL5", "Pine Script",
+    "BotForge",
+    "trading bot builder",
+    "algorithmic trading",
+    "MQL5 expert advisor",
+    "Pine Script generator",
+    "strategy backtesting",
+    "crypto backtest",
+    "forex bot",
+    "OANDA API",
+    "MetaTrader EA",
+    "paper trading",
+    "economic calendar",
   ],
   applicationName: "BotForge",
   category: "finance",
+  authors: [{ name: "Hummzer", url: "https://hummzer.vercel.app" }],
+  creator: "Hummzer",
+  publisher: "BotForge",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "BotForge | Build, Backtest & Monitor Trading Bots",
-    description: "Build trading strategies, test them against market data and monitor real-time paper execution.",
-    url: "https://bot-forge-ten.vercel.app",
+    title: "BotForge | Build, Backtest & Deploy Trading Bots",
+    description:
+      "Compile multi-language trading strategies, run a MetaTrader-style tester on real candles, journal, and connect brokers.",
+    url: site,
     siteName: "BotForge",
+    locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "BotForge | Algorithmic Trading Workspace",
-    description: "Build, backtest and monitor trading bots with real-time market data.",
+    description: "Build, backtest and monitor trading bots with real market data.",
   },
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
+  verification: {},
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

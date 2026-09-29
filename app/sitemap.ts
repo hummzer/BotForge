@@ -1,12 +1,28 @@
 import type { MetadataRoute } from "next"
 
+const base = "https://bot-forge-ten.vercel.app"
+
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = "https://bot-forge-ten.vercel.app"
-  return [
-    { url: base, changeFrequency: "weekly", priority: 1 },
-    { url: `${base}/bots/create`, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${base}/backtest`, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${base}/live-bots`, changeFrequency: "daily", priority: 0.9 },
-    { url: `${base}/data`, changeFrequency: "weekly", priority: 0.7 },
+  const paths = [
+    "",
+    "/pricing",
+    "/login",
+    "/calendar",
+    "/strategies",
+    "/bots",
+    "/bots/create",
+    "/backtest",
+    "/backtest/report",
+    "/chart",
+    "/journal",
+    "/brokers",
+    "/settings",
+    "/live-bots",
   ]
+  return paths.map((p) => ({
+    url: `${base}${p || "/"}`,
+    lastModified: new Date(),
+    changeFrequency: p === "" || p === "/pricing" ? "weekly" : "monthly",
+    priority: p === "" ? 1 : p === "/pricing" ? 0.9 : 0.7,
+  }))
 }

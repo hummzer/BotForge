@@ -1,40 +1,25 @@
 # BotForge
 
-Spotify-themed algorithmic trading workspace: **compile strategies**, **backtest real candles**, **journal**, **chart**, **connect brokers**, **run paper bots**.
+Spotify-themed algorithmic trading workspace.
 
-## Stack
+## What works now
 
-- Next.js 15 · TypeScript · Tailwind · Radix
-- Engine: `lib/engine/` (spec → indicators → backtest → 8 generators)
-- Market: `/api/market/candles` (Binance proxy), `/api/market/gold` (XAUUSD banner)
-- Payments: Daraja STK + PayPal Orders
-- Workspace: browser localStorage with full JSON export/import
+- **Hero live markets**: BTC/USDT stream + XAU/USD (gold) card *below* it (not in the navbar)
+- **6-step bot builder**: identity → market → prompt → AI provider (BotForge / OpenAI) → compile all 8 languages → review
+- **Free plan**: all 8 sources generated; **run target** limited to Python, MQL5, Pine Script
+- **My Bots**: multi-language source tabs, set run language, download, VPS links
+- **Strategy tester**: MetaTrader-style Expert / Symbol / Period / Deposit / Start / Report (no RSI UI clutter)
+- **Economic calendar**: Investing.com embed (`/calendar`)
+- **Auth**: Google · GitHub · **MQL5 Community** login fields
+- **TradingView**: real sign-in popup on tradingview.com (session cookies); partner OAuth still requires TV agreement
+- **OANDA**: connect + **transaction history** API when token is set
+- **Workspace**: export / import JSON · Settings
+- **SEO**: expanded metadata, sitemap, robots
 
-## Core flow
-
-1. **Sign in** → Strategies / Bots / Backtest unlock  
-2. **Describe strategy** → compiler → **Save as bot**  
-3. **Backtest / Forward / Optimize** on Binance data → **Report**  
-4. **Run / Pause / Stop** bots · **VPS** links · **Live** paper BTC stream  
-5. **Journal** with vibes · **Chart** (TradingView) · **Brokers** (OANDA live, Binance key validate)  
-6. **Settings** → export/import workspace backup  
-
-## Key APIs
-
-| Route | Role |
-|-------|------|
-| `POST /api/generate-bot-code` | Deterministic multi-lang compiler |
-| `GET /api/market/candles` | Binance klines proxy |
-| `GET /api/market/gold` | Gold quote for XAUUSD strip |
-| `POST /api/brokers/oanda/connect` | OANDA practice REST |
-| `POST /api/brokers/binance/validate` | Binance API key check |
-| `POST /api/payments/mpesa/stk` | Daraja production STK |
-| `POST /api/payments/paypal/create` | PayPal Orders |
-
-## Env (Vercel)
+## Env keys only (you set these)
 
 ```
-OPENAI_API_KEY=                 # optional AI fallback
+OPENAI_API_KEY=
 MPESA_CONSUMER_KEY=
 MPESA_CONSUMER_SECRET=
 MPESA_PASSKEY=
@@ -44,21 +29,15 @@ PAYPAL_CLIENT_ID=
 PAYPAL_CLIENT_SECRET=
 ```
 
-## Scripts
-
-```bash
-npm install && npm run dev
-npm run build
-npm run typecheck
-npm run test:engine
-```
+Optional later: `NEXTAUTH_*`, MetaQuotes / TradingView partner client IDs.
 
 ## What remains
 
-- Production OAuth (next-auth already in deps)
-- Persist workspace to a database (currently local browser)
-- Full REST adapters beyond OANDA + Binance validate
-- Payment webhook → plan entitlement
-- Deeper generator parity for edge-case specs
+1. **Production OAuth** — wire next-auth Google/GitHub; MetaQuotes official app OAuth for MQL5
+2. **TradingView partner SSO** — public widgets cannot fully SSO without a TV commercial agreement
+3. **Database** — move bots/journal/tests off localStorage
+4. **Payment → plan** — webhook unlocks Pro/Quant (today plan can be set in session after pay)
+5. **Full broker REST** — IBKR, cTrader, live MT bridge beyond session + OANDA
+6. **Investing.com calendar** — iframe styling depends on their widget; fallback if blocked by adblock
 
 Built by [Hummzer](https://hummzer.vercel.app/)
