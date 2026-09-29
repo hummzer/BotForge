@@ -25,9 +25,19 @@ const privateLinks = [
   { name: "Chart", href: "/chart" },
   { name: "Journal", href: "/journal" },
   { name: "Brokers", href: "/brokers" },
+  { name: "Settings", href: "/settings" },
 ]
 
-const protectedPaths = ["/strategies", "/bots", "/live-bots", "/backtest", "/journal", "/brokers", "/chart", "/settings"]
+const protectedPaths = [
+  "/strategies",
+  "/bots",
+  "/live-bots",
+  "/backtest",
+  "/journal",
+  "/brokers",
+  "/chart",
+  "/settings",
+]
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -72,13 +82,13 @@ function Navigation() {
             BotForge
           </Link>
 
-          <nav className="hidden items-center gap-1 md:flex">
+          <nav className="hidden items-center gap-1 lg:flex">
             {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "rounded-full px-3 py-1.5 text-sm font-medium text-spotify-text-secondary transition hover:text-spotify-green",
+                  "rounded-full px-2.5 py-1.5 text-sm font-medium text-spotify-text-secondary transition hover:text-spotify-green",
                   (pathname === link.href || pathname.startsWith(link.href + "/")) &&
                     "bg-spotify-green/15 text-spotify-green",
                 )}
@@ -91,7 +101,9 @@ function Navigation() {
           <div className="flex items-center gap-2">
             {user ? (
               <>
-                <span className="hidden text-sm text-spotify-text-secondary sm:inline">{user.name}</span>
+                <Link href="/settings" className="hidden text-sm text-spotify-text-secondary hover:text-spotify-green sm:inline">
+                  {user.name}
+                </Link>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -110,7 +122,7 @@ function Navigation() {
             )}
             <button
               type="button"
-              className="rounded-lg p-2 text-spotify-text-secondary md:hidden"
+              className="rounded-lg p-2 text-spotify-text-secondary lg:hidden"
               onClick={() => setOpen((v) => !v)}
               aria-label="Menu"
             >
@@ -119,7 +131,7 @@ function Navigation() {
           </div>
         </div>
         {open && (
-          <nav className="border-t border-spotify-grey px-4 py-3 md:hidden">
+          <nav className="border-t border-spotify-grey px-4 py-3 lg:hidden">
             <div className="flex flex-col gap-1">
               {links.map((link) => (
                 <Link
