@@ -33,7 +33,10 @@ export function readBots(): Bot[] {
 }
 
 export function writeBots(bots: Bot[]) {
-  if (typeof window !== "undefined") window.localStorage.setItem(BOTS_KEY, JSON.stringify(bots))
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(BOTS_KEY, JSON.stringify(bots))
+    window.dispatchEvent(new Event("botforge-workspace-updated"))
+  }
 }
 
 export function createBot(input: Omit<Bot, "id" | "createdAt" | "lastRun">): Bot {
@@ -45,6 +48,12 @@ export function createBot(input: Omit<Bot, "id" | "createdAt" | "lastRun">): Bot
   }
 }
 
+export function addBot(bot: Bot) {
+  const bots = readBots()
+  writeBots([bot, ...bots])
+  return bot
+}
+
 export type Candle = {
   time: number
   open: number
@@ -54,7 +63,18 @@ export type Candle = {
   volume: number
 }
 
+/** Prefer our server proxy; fall back to public Binance. */
 export async function fetchBinanceCandles(symbol = "BTCUSDT", interval = "1h", limit = 500): Promise<Candle[]> {
+  const qs = `symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`
+  try {
+    const response = await fetch(`/api/market/candles?${qs}`, { cache: "no-store" })
+    if (response.ok) {
+      const data = await response.json()
+      if (Array.isArray(data.candles) && data.candles.length) return data.candles as Candle[]
+    }
+  } catch {
+    /* fall through */
+  }
   const response = await fetch(
     `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`,
     { cache: "no-store" },
@@ -261,7 +281,6 @@ export function runSmaRsiBacktest(candles: Candle[], params: BacktestParams = {}
   }
 }
 
-/** Grid-search a few SMA / RSI thresholds on the same candles. */
 export function optimizeSmaRsi(
   candles: Candle[],
   base: BacktestParams = {},
@@ -293,6 +312,7 @@ export function saveBacktestResult(result: BacktestResult) {
   const prev = readBacktestResults()
   const next = [result, ...prev].slice(0, 40)
   window.localStorage.setItem(RESULTS_KEY, JSON.stringify(next))
+  window.dispatchEvent(new Event("botforge-workspace-updated"))
 }
 
 export function readBacktestResults(): BacktestResult[] {
@@ -317,5 +337,4 @@ export function writeTradingViewUsername(name: string) {
   if (typeof window !== "undefined") window.localStorage.setItem(TV_KEY, name)
 }
 
-/** Re-export ema for advanced strategies later */
 export { ema }

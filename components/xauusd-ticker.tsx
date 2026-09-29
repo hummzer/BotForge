@@ -5,7 +5,6 @@ import { Activity } from "lucide-react"
 
 type Quote = { price: number; changePct: number; source: string }
 
-/** Live XAUUSD-style gold quote from public endpoints (no API key). */
 export function XauusdTicker({ compact = false }: { compact?: boolean }) {
   const [q, setQ] = useState<Quote | null>(null)
   const [err, setErr] = useState("")
@@ -14,22 +13,14 @@ export function XauusdTicker({ compact = false }: { compact?: boolean }) {
     let cancelled = false
     const load = async () => {
       try {
-        // Gold futures via Yahoo chart API (public, no key)
-        const r = await fetch(
-          "https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1m&range=1d",
-          { cache: "no-store" },
-        )
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const r = await fetch("/api/market/gold", { cache: "no-store" })
         const d = await r.json()
-        const meta = d?.chart?.result?.[0]?.meta
-        const price = Number(meta?.regularMarketPrice)
-        const prev = Number(meta?.previousClose || meta?.chartPreviousClose)
-        if (!price || cancelled) return
-        const changePct = prev ? ((price - prev) / prev) * 100 : 0
-        setQ({ price, changePct, source: "GC=F" })
+        if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
+        if (cancelled) return
+        setQ({ price: d.price, changePct: d.changePct, source: d.proxy || "GC=F" })
         setErr("")
       } catch (e) {
-        if (!cancelled) setErr(e instanceof Error ? e.message : "quote failed")
+        if (!cancelled) setErr(e instanceof Error ? e.message : "offline")
       }
     }
     load()
@@ -73,7 +64,7 @@ export function XauusdTicker({ compact = false }: { compact?: boolean }) {
         <p className={`text-lg font-semibold tabular-nums ${q && q.changePct >= 0 ? "text-spotify-green" : "text-red-400"}`}>
           {q ? `${q.changePct >= 0 ? "+" : ""}${q.changePct.toFixed(2)}%` : "—"}
         </p>
-        <p className="text-[11px] text-spotify-text-secondary">source {q?.source || "…"} · 30s refresh</p>
+        <p className="text-[11px] text-spotify-text-secondary">source {q?.source || "…"} · 30s</p>
       </div>
     </div>
   )
