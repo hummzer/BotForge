@@ -3,12 +3,14 @@ import { header, indCalls, ruleExpr, type Emit } from "./common"
 
 const emit: Emit = {
   num: n => String(n),
-  v: (r, k) => k === 0 ? mqlRef(r) : mqlRef(r, k),
+  v: (r, k) => (k === 0 ? mqlRef(r) : mqlRef(r, k)),
   cmp: (op, a, b) => `(${a} ${op} ${b})`,
-  cross: (d, a1, a0, b1, b0) => d === "above" ? `(${a0} <= ${b0} && ${a1} > ${b1})` : `(${a0} >= ${b0} && ${a1} < ${b1})`,
+  cross: (d, a1, a0, b1, b0) =>
+    d === "above" ? `(${a0} <= ${b0} && ${a1} > ${b1})` : `(${a0} >= ${b0} && ${a1} < ${b1})`,
   feat: (k, s) => `feat_${k.replace(/[^a-zA-Z0-9]/g, "_")}_${s}`,
-  and: p => p.length ? p.join(" && ") : "false",
+  and: p => (p.length ? p.join(" && ") : "false"),
 }
+
 function mqlRef(r: string, shift = 0): string {
   const s = shift ? `, ${shift}` : ""
   if (r === "open") return `iOpen(_Symbol, _Period${s})`
@@ -55,12 +57,12 @@ export function genMql5(spec: StrategySpec): string {
   lines.push(`  bool shortCond = ${ruleExpr(spec, "short", emit)};`)
   lines.push(`  double risk = ${spec.risk.riskPercent};`)
   lines.push(`  double rr = ${spec.risk.rr};`)
-  lines.push("  if(longCond && PositionsBySymbol(_Symbol) < 1) {")
+  lines.push("  if(longCond && CountPositions(_Symbol) < 1) {")
   lines.push("    double dist = AtrStopDistance(_Symbol, _Period, 14, 1.5);")
   lines.push("    TradePlan p = BuildTradePlan(_Symbol, 1, SymbolInfoDouble(_Symbol, SYMBOL_ASK), risk, rr, dist);")
   lines.push("    if(p.valid && MarginOk(_Symbol, p.lots, ORDER_TYPE_BUY)) trade.Buy(p.lots, _Symbol, p.entry, p.sl, p.tp);")
   lines.push("  }")
-  lines.push("  if(shortCond && PositionsBySymbol(_Symbol) < 1) {")
+  lines.push("  if(shortCond && CountPositions(_Symbol) < 1) {")
   lines.push("    double dist = AtrStopDistance(_Symbol, _Period, 14, 1.5);")
   lines.push("    TradePlan p = BuildTradePlan(_Symbol, -1, SymbolInfoDouble(_Symbol, SYMBOL_BID), risk, rr, dist);")
   lines.push("    if(p.valid && MarginOk(_Symbol, p.lots, ORDER_TYPE_SELL)) trade.Sell(p.lots, _Symbol, p.entry, p.sl, p.tp);")
@@ -68,5 +70,3 @@ export function genMql5(spec: StrategySpec): string {
   lines.push("}")
   return lines.join("\n")
 }
-
-function PositionsBySymbol(symbol: string) { return 0 } // placeholder comment for generator
