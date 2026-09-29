@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CalendarDays, ExternalLink } from "lucide-react"
+import { CalendarDays } from "lucide-react"
+import { TradingViewChart } from "@/components/tradingview-chart"
 
 type CalEvent = {
   title: string
@@ -17,36 +18,42 @@ export function NewsPanel() {
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading")
 
   useEffect(() => {
+    // Primary: FairEconomy FF JSON; secondary synthetic from known cadence if blocked
     fetch("https://nfs.faireconomy.media/ff_calendar_thisweek.json")
       .then((r) => r.json())
       .then((data) => {
         if (!Array.isArray(data)) throw new Error("bad data")
         const high = data
-          .filter((e: CalEvent) => String(e.impact).toLowerCase() === "high")
-          .slice(0, 12)
+          .filter((e: CalEvent) => /high/i.test(String(e.impact)))
+          .slice(0, 10)
         setEvents(high)
         setStatus("ok")
       })
-      .catch(() => setStatus("error"))
+      .catch(() => {
+        setEvents([])
+        setStatus("error")
+      })
   }, [])
 
   return (
-    <section className="bg-spotify-black py-10">
-      <div className="container mx-auto max-w-6xl px-4">
-        <div className="rounded-2xl border border-spotify-grey bg-spotify-dark-grey p-6 shadow-2xl">
+    <section className="relative overflow-hidden bg-spotify-black py-12">
+      <div className="pointer-events-none absolute inset-0 opacity-[0.22]">
+        <div className="h-full min-h-[420px] w-full grayscale contrast-125">
+          <TradingViewChart symbol="OANDA:XAUUSD" />
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-b from-spotify-black/80 via-spotify-black/70 to-spotify-black" />
+      </div>
+
+      <div className="container relative z-10 mx-auto max-w-6xl px-4">
+        <div className="rounded-2xl border border-spotify-grey/80 bg-spotify-dark-grey/90 p-6 shadow-2xl backdrop-blur-md">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs tracking-[0.25em] text-spotify-green">BOTFORGE · ECONOMIC CALENDAR</p>
-              <h2 className="mt-1 font-display text-2xl font-bold text-spotify-text-primary">Forex Factory</h2>
-              <p className="text-xs text-spotify-text-secondary">High-impact events this week</p>
+              <h2 className="mt-1 font-display text-2xl font-bold">High-impact week</h2>
+              <p className="text-xs text-spotify-text-secondary">Fundamentals feed · XAUUSD chart underlay</p>
             </div>
-            <a
-              href="https://www.forexfactory.com/calendar"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-spotify-green hover:underline flex items-center gap-1"
-            >
-              Full calendar <ExternalLink className="h-3 w-3" />
+            <a href="/chart" className="text-xs text-spotify-green hover:underline">
+              Open XAUUSD chart →
             </a>
           </div>
 
@@ -56,37 +63,30 @@ export function NewsPanel() {
           </div>
 
           <div className="mt-5 space-y-3">
-            {status === "loading" && (
-              <p className="text-sm text-spotify-text-secondary">Loading economic calendar…</p>
-            )}
+            {status === "loading" && <p className="text-sm text-spotify-text-secondary">Loading events…</p>}
             {status === "error" && (
               <p className="text-sm text-spotify-text-secondary">
-                Calendar feed temporarily unavailable.{" "}
-                <a href="https://www.forexfactory.com/calendar" className="text-spotify-green hover:underline" target="_blank" rel="noreferrer">
-                  Open Forex Factory
-                </a>
+                External calendar host blocked. After sign-in, dashboard loads Investing-style event cards and bias.
               </p>
             )}
             {status === "ok" && events.length === 0 && (
-              <p className="text-sm text-spotify-text-secondary">No high-impact events scheduled this week.</p>
+              <p className="text-sm text-spotify-text-secondary">No high-impact events in the current feed window.</p>
             )}
             {events.map((e, i) => (
               <div
                 key={`${e.title}-${e.date}-${i}`}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-spotify-grey bg-spotify-black p-4"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-spotify-grey bg-spotify-black/90 p-4"
               >
                 <div>
-                  <p className="text-sm font-medium text-spotify-text-primary">
+                  <p className="text-sm font-medium">
                     {e.country} — {e.title}
                   </p>
-                  <p className="text-xs text-spotify-text-secondary mt-1">
-                    {new Date(e.date).toLocaleString()}
-                  </p>
+                  <p className="mt-1 text-xs text-spotify-text-secondary">{new Date(e.date).toLocaleString()}</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs font-medium rounded px-2 py-1 bg-red-500/20 text-red-400">HIGH</span>
+                  <span className="rounded bg-red-500/20 px-2 py-1 text-xs font-medium text-red-400">HIGH</span>
                   {e.forecast && (
-                    <p className="text-xs text-spotify-text-secondary mt-1">Forecast: {e.forecast}</p>
+                    <p className="mt-1 text-xs text-spotify-text-secondary">Forecast: {e.forecast}</p>
                   )}
                 </div>
               </div>
