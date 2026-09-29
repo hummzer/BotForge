@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Link2, Wifi, WifiOff } from "lucide-react"
+import { Link2, Wifi } from "lucide-react"
 
 const STORAGE_KEY = "botforge_broker"
 
@@ -15,11 +15,10 @@ const BROKERS = [
   { id: "mt4", name: "MetaTrader 4", status: "live", desc: "EA deploy + account bridge" },
   { id: "oanda", name: "OANDA", status: "live", desc: "REST practice / live token" },
   { id: "ctrader", name: "cTrader", status: "beta", desc: "Open API bridge" },
-  { id: "deriv", name: "Deriv", status: "beta", desc: "Binary + CFDs API" },
-  { id: "ibkr", name: "Interactive Brokers", status: "planned", desc: "TWS / Gateway" },
+  { id: "deriv", name: "Deriv", status: "beta", desc: "CFDs API" },
   { id: "binance", name: "Binance", status: "beta", desc: "Spot + futures keys" },
-  { id: "bybit", name: "Bybit", status: "planned", desc: "Unified trading API" },
-  { id: "fxcm", name: "FXCM", status: "planned", desc: "Forex Connect" },
+  { id: "ibkr", name: "Interactive Brokers", status: "planned", desc: "TWS / Gateway" },
+  { id: "bybit", name: "Bybit", status: "planned", desc: "Unified API" },
   { id: "pepperstone", name: "Pepperstone", status: "via-mt", desc: "Via MT4/MT5" },
   { id: "icmarkets", name: "IC Markets", status: "via-mt", desc: "Via MT4/MT5" },
   { id: "exness", name: "Exness", status: "via-mt", desc: "Via MT4/MT5" },
@@ -91,21 +90,24 @@ export default function BrokersPage() {
           setConnected(true)
           localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
           setPassword("")
-          setMessage("Connected to OANDA practice account.")
+          setMessage("Connected to OANDA practice.")
           setLoading(false)
           return
         }
+        setMessage(d.error || "OANDA connection failed")
+        setLoading(false)
+        return
       }
 
       const next: BrokerAccount = {
         accountId: accountId.trim(),
-        balance: 10000,
-        equity: 10000,
+        balance: 0,
+        equity: 0,
         marginUsed: 0,
-        freeMargin: 10000,
+        freeMargin: 0,
         currency: "USD",
-        leverage: "1:100",
-        server: `${brokerId.toUpperCase()}-Demo`,
+        leverage: "—",
+        server: `${brokerId.toUpperCase()}-session`,
         brokerId,
         connectedAt: new Date().toISOString(),
       }
@@ -113,7 +115,9 @@ export default function BrokersPage() {
       setConnected(true)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       setPassword("")
-      setMessage(`Connected via ${BROKERS.find((b) => b.id === brokerId)?.name || brokerId} bridge (session stored locally).`)
+      setMessage(
+        `Session stored for ${BROKERS.find((b) => b.id === brokerId)?.name}. Live balances require that broker’s API credentials on the server.`,
+      )
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Connection failed")
     } finally {
@@ -132,16 +136,18 @@ export default function BrokersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070a0e] py-10 text-zinc-100">
-      <div className="container mx-auto max-w-5xl px-4">
-        <p className="text-xs tracking-[0.3em] text-violet-400">BOTFORGE · BROKER BRIDGE</p>
-        <h1 className="mt-3 text-4xl font-bold">Connect Broker</h1>
-        <p className="mt-2 max-w-xl text-sm text-zinc-400">
-          Choose a venue, enter credentials or API token. Live OANDA practice uses the real REST bridge; others use the
-          session bridge until full adapters ship.
-        </p>
+    <div className="bf-page">
+      <div className="bf-container bf-section-gap">
+        <div>
+          <p className="bf-kicker">Brokers</p>
+          <h1 className="bf-title">Connect account</h1>
+          <p className="bf-sub">
+            OANDA practice uses live REST when you paste a real token. MT and others store a session for the workspace until
+            full adapters are enabled with API keys.
+          </p>
+        </div>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {BROKERS.map((b) => (
             <button
               key={b.id}
@@ -149,8 +155,8 @@ export default function BrokersPage() {
               onClick={() => setBrokerId(b.id)}
               className={
                 brokerId === b.id
-                  ? "rounded-xl border border-violet-500 bg-violet-600/10 p-4 text-left"
-                  : "rounded-xl border border-zinc-800 bg-[#0d1218] p-4 text-left hover:border-zinc-600"
+                  ? "rounded-2xl border border-spotify-green bg-spotify-green/10 p-4 text-left"
+                  : "bf-card-pad text-left hover:border-spotify-green/40"
               }
             >
               <div className="flex items-center justify-between">
@@ -158,24 +164,24 @@ export default function BrokersPage() {
                 <Badge
                   className={
                     b.status === "live"
-                      ? "bg-emerald-500/15 text-emerald-400 border-0"
+                      ? "bg-spotify-green/15 text-spotify-green border-0"
                       : b.status === "beta"
                         ? "bg-amber-500/15 text-amber-300 border-0"
-                        : "bg-zinc-800 text-zinc-400 border-0"
+                        : "bg-spotify-grey text-spotify-text-secondary border-0"
                   }
                 >
                   {b.status}
                 </Badge>
               </div>
-              <p className="mt-1 text-xs text-zinc-500">{b.desc}</p>
+              <p className="mt-1 text-xs text-spotify-text-secondary">{b.desc}</p>
             </button>
           ))}
         </div>
 
-        <Card className="mt-8 border-zinc-800 bg-[#0d1218]">
+        <Card className="border-spotify-grey bg-spotify-dark-grey">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Link2 className="h-5 w-5 text-violet-400" />
+              <Link2 className="h-5 w-5 text-spotify-green" />
               {BROKERS.find((b) => b.id === brokerId)?.name} credentials
             </CardTitle>
           </CardHeader>
@@ -183,26 +189,24 @@ export default function BrokersPage() {
             {connected && account ? (
               <>
                 <div className="flex items-center justify-between">
-                  <Badge className="bg-emerald-500 text-black gap-1">
+                  <Badge className="gap-1 bg-spotify-green text-spotify-black">
                     <Wifi className="h-3 w-3" /> CONNECTED
                   </Badge>
-                  <Button variant="outline" size="sm" onClick={disconnect} className="border-zinc-700 text-red-400">
+                  <Button variant="outline" size="sm" onClick={disconnect} className="border-spotify-grey text-red-400">
                     Disconnect
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   {[
                     ["Account", account.accountId],
                     ["Broker", account.brokerId],
-                    ["Balance", `$${account.balance.toFixed(2)}`],
-                    ["Equity", `$${account.equity.toFixed(2)}`],
-                    ["Free margin", `$${account.freeMargin.toFixed(2)}`],
-                    ["Leverage", account.leverage],
-                    ["Currency", account.currency],
+                    ["Balance", `${account.currency} ${account.balance.toFixed(2)}`],
+                    ["Equity", `${account.currency} ${account.equity.toFixed(2)}`],
                     ["Server", account.server],
+                    ["Connected", new Date(account.connectedAt).toLocaleString()],
                   ].map(([label, val]) => (
-                    <div key={label} className="rounded-xl border border-zinc-800 bg-[#070a0e] p-4">
-                      <p className="text-xs text-zinc-500">{label}</p>
+                    <div key={label} className="rounded-xl border border-spotify-grey bg-spotify-black p-4">
+                      <p className="text-xs text-spotify-text-secondary">{label}</p>
                       <p className="mt-1 font-mono text-sm">{val}</p>
                     </div>
                   ))}
@@ -211,34 +215,28 @@ export default function BrokersPage() {
             ) : (
               <>
                 <div>
-                  <Label className="text-zinc-400">Account number / API key id</Label>
+                  <Label className="text-spotify-text-secondary">Account / key id</Label>
                   <Input
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    placeholder="Account or key id"
-                    className="mt-2 h-12 border-zinc-700 bg-[#070a0e]"
+                    className="mt-2 h-12 border-spotify-grey bg-spotify-black"
                   />
                 </div>
                 <div>
-                  <Label className="text-zinc-400">Password / API token</Label>
+                  <Label className="text-spotify-text-secondary">Password / API token</Label>
                   <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Trading password or bearer token"
-                    className="mt-2 h-12 border-zinc-700 bg-[#070a0e]"
+                    className="mt-2 h-12 border-spotify-grey bg-spotify-black"
                   />
                 </div>
-                <Button
-                  onClick={connect}
-                  disabled={loading}
-                  className="w-full h-12 bg-violet-600 text-white hover:bg-violet-500"
-                >
-                  {loading ? "Connecting…" : "Connect account"}
+                <Button onClick={connect} disabled={loading} className="bf-btn-primary w-full">
+                  {loading ? "Connecting…" : "Connect"}
                 </Button>
               </>
             )}
-            {message && <p className="text-sm text-zinc-400">{message}</p>}
+            {message && <p className="text-sm text-spotify-text-secondary">{message}</p>}
           </CardContent>
         </Card>
       </div>
