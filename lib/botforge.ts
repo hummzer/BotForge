@@ -1,4 +1,4 @@
-export type BotStatus = "Running" | "Paused" | "Stopped" | "Production Ready"
+export type BotStatus = "Running" | "Paused" | "Stopped" | "Deploying" | "Error" | "Ready"
 
 export type Bot = {
   id: string
@@ -12,9 +12,13 @@ export type Bot = {
   indicators: string[]
   createdAt: string
   lastRun: string | null
+  vpsUrl?: string
+  notes?: string
 }
 
 const BOTS_KEY = "botforge:bots"
+const RESULTS_KEY = "botforge:backtest_results"
+const TV_KEY = "botforge:tradingview"
 
 export const defaultBots: Bot[] = []
 
@@ -29,9 +33,7 @@ export function readBots(): Bot[] {
 }
 
 export function writeBots(bots: Bot[]) {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(BOTS_KEY, JSON.stringify(bots))
-  }
+  if (typeof window !== "undefined") window.localStorage.setItem(BOTS_KEY, JSON.stringify(bots))
 }
 
 export function createBot(input: Omit<Bot, "id" | "createdAt" | "lastRun">): Bot {
@@ -74,6 +76,14 @@ function sma(values: number[], period: number) {
   return values.slice(-period).reduce((a, b) => a + b, 0) / period
 }
 
+function ema(values: number[], period: number) {
+  if (values.length < period) return null
+  const k = 2 / (period + 1)
+  let e = values.slice(0, period).reduce((a, b) => a + b, 0) / period
+  for (let i = period; i < values.length; i++) e = values[i] * k + e * (1 - k)
+  return e
+}
+
 function rsi(values: number[], period = 14) {
   if (values.length <= period) return null
   let gains = 0
@@ -84,11 +94,24 @@ function rsi(values: number[], period = 14) {
     else losses -= change
   }
   if (losses === 0) return 100
-  const rs = gains / losses
-  return 100 - 100 / (1 + rs)
+  return 100 - 100 / (1 + gains / losses)
+}
+
+export type BacktestTrade = {
+  i: number
+  side: "LONG" | "SHORT"
+  entry: number
+  exit: number
+  pnl: number
+  time: number
 }
 
 export type BacktestResult = {
+  id: string
+  mode: "backtest" | "forward" | "optimize"
+  symbol: string
+  interval: string
+  strategy: string
   trades: number
   wins: number
   losses: number
@@ -96,10 +119,50 @@ export type BacktestResult = {
   netPnl: number
   maxDrawdown: number
   profitFactor: number
+  sharpe: number
+  startingBalance: number
+  endingBalance: number
+  riskPercent: number
+  smaPeriod: number
+  rsiPeriod: number
+  rsiBuy: number
+  rsiSell: number
+  stopPct: number
+  takePct: number
   equity: { time: number; equity: number }[]
+  tradeList: BacktestTrade[]
+  optimized?: { smaPeriod: number; rsiBuy: number; rsiSell: number; netPnl: number }
+  createdAt: string
 }
 
-export function runSmaRsiBacktest(candles: Candle[], startingBalance = 10000, riskPercent = 1): BacktestResult {
+export type BacktestParams = {
+  startingBalance?: number
+  riskPercent?: number
+  smaPeriod?: number
+  rsiPeriod?: number
+  rsiBuy?: number
+  rsiSell?: number
+  stopPct?: number
+  takePct?: number
+  mode?: "backtest" | "forward"
+  forwardBars?: number
+}
+
+export function runSmaRsiBacktest(candles: Candle[], params: BacktestParams = {}): BacktestResult {
+  const startingBalance = params.startingBalance ?? 10000
+  const riskPercent = params.riskPercent ?? 1
+  const smaPeriod = params.smaPeriod ?? 50
+  const rsiPeriod = params.rsiPeriod ?? 14
+  const rsiBuy = params.rsiBuy ?? 30
+  const rsiSell = params.rsiSell ?? 70
+  const stopPct = params.stopPct ?? 1
+  const takePct = params.takePct ?? 2
+  const mode = params.mode ?? "backtest"
+  const forwardBars = params.forwardBars ?? Math.floor(candles.length * 0.2)
+
+  const startIdx =
+    mode === "forward" ? Math.max(smaPeriod + rsiPeriod, candles.length - forwardBars) : smaPeriod + 1
+
   let equity = startingBalance
   let peak = equity
   let maxDrawdown = 0
@@ -108,33 +171,39 @@ export function runSmaRsiBacktest(candles: Candle[], startingBalance = 10000, ri
   let grossProfit = 0
   let grossLoss = 0
   const equityCurve: { time: number; equity: number }[] = [{ time: candles[0]?.time ?? Date.now(), equity }]
+  const tradeList: BacktestTrade[] = []
+  const returns: number[] = []
 
-  for (let i = 50; i < candles.length; i++) {
-    const closes = candles.slice(0, i + 1).map(c => c.close)
-    const ma50 = sma(closes, 50)
-    const currentRsi = rsi(closes, 14)
-    const previousRsi = rsi(closes.slice(0, -1), 14)
-    if (ma50 === null || currentRsi === null || previousRsi === null) continue
+  for (let i = startIdx; i < candles.length - 1; i++) {
+    const closes = candles.slice(0, i + 1).map((c) => c.close)
+    const ma = sma(closes, smaPeriod)
+    const currentRsi = rsi(closes, rsiPeriod)
+    const previousRsi = rsi(closes.slice(0, -1), rsiPeriod)
+    if (ma === null || currentRsi === null || previousRsi === null) continue
 
     const candle = candles[i]
+    const next = candles[i + 1]
     const risk = equity * (riskPercent / 100)
     let pnl = 0
+    let side: "LONG" | "SHORT" | null = null
 
-    if (previousRsi <= 30 && currentRsi > 30 && candle.close > ma50) {
-      const stop = candle.close * 0.99
-      const target = candle.close * 1.02
-      const next = candles[i + 1]
-      if (!next) break
-      pnl = next.low <= stop ? -risk : next.high >= target ? risk * 2 : ((next.close - candle.close) / candle.close) * risk * 100
-    } else if (previousRsi >= 70 && currentRsi < 70 && candle.close < ma50) {
-      const stop = candle.close * 1.01
-      const target = candle.close * 0.98
-      const next = candles[i + 1]
-      if (!next) break
-      pnl = next.high >= stop ? -risk : next.low <= target ? risk * 2 : ((candle.close - next.close) / candle.close) * risk * 100
+    if (previousRsi <= rsiBuy && currentRsi > rsiBuy && candle.close > ma) {
+      side = "LONG"
+      const stop = candle.close * (1 - stopPct / 100)
+      const target = candle.close * (1 + takePct / 100)
+      if (next.low <= stop) pnl = -risk
+      else if (next.high >= target) pnl = risk * (takePct / stopPct)
+      else pnl = ((next.close - candle.close) / candle.close) * risk * 100
+    } else if (previousRsi >= rsiSell && currentRsi < rsiSell && candle.close < ma) {
+      side = "SHORT"
+      const stop = candle.close * (1 + stopPct / 100)
+      const target = candle.close * (1 - takePct / 100)
+      if (next.high >= stop) pnl = -risk
+      else if (next.low <= target) pnl = risk * (takePct / stopPct)
+      else pnl = ((candle.close - next.close) / candle.close) * risk * 100
     }
 
-    if (pnl !== 0) {
+    if (side && pnl !== 0) {
       if (pnl > 0) {
         wins++
         grossProfit += pnl
@@ -143,13 +212,32 @@ export function runSmaRsiBacktest(candles: Candle[], startingBalance = 10000, ri
         grossLoss += Math.abs(pnl)
       }
       equity += pnl
+      returns.push(pnl / startingBalance)
       peak = Math.max(peak, equity)
       maxDrawdown = Math.max(maxDrawdown, peak - equity)
+      tradeList.push({
+        i: tradeList.length + 1,
+        side,
+        entry: candle.close,
+        exit: next.close,
+        pnl,
+        time: candle.time,
+      })
     }
     equityCurve.push({ time: candle.time, equity })
   }
 
+  const mean = returns.length ? returns.reduce((a, b) => a + b, 0) / returns.length : 0
+  const variance =
+    returns.length > 1 ? returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1) : 0
+  const sharpe = variance > 0 ? (mean / Math.sqrt(variance)) * Math.sqrt(252) : 0
+
   return {
+    id: crypto.randomUUID(),
+    mode,
+    symbol: "",
+    interval: "",
+    strategy: `SMA(${smaPeriod})+RSI(${rsiPeriod}) ${rsiBuy}/${rsiSell}`,
     trades: wins + losses,
     wins,
     losses,
@@ -157,6 +245,77 @@ export function runSmaRsiBacktest(candles: Candle[], startingBalance = 10000, ri
     netPnl: equity - startingBalance,
     maxDrawdown,
     profitFactor: grossLoss ? grossProfit / grossLoss : grossProfit ? Infinity : 0,
+    sharpe,
+    startingBalance,
+    endingBalance: equity,
+    riskPercent,
+    smaPeriod,
+    rsiPeriod,
+    rsiBuy,
+    rsiSell,
+    stopPct,
+    takePct,
     equity: equityCurve,
+    tradeList,
+    createdAt: new Date().toISOString(),
   }
 }
+
+/** Grid-search a few SMA / RSI thresholds on the same candles. */
+export function optimizeSmaRsi(
+  candles: Candle[],
+  base: BacktestParams = {},
+): { best: BacktestResult; trials: { smaPeriod: number; rsiBuy: number; rsiSell: number; netPnl: number }[] } {
+  const trials: { smaPeriod: number; rsiBuy: number; rsiSell: number; netPnl: number }[] = []
+  let best: BacktestResult | null = null
+  for (const smaPeriod of [20, 50, 100]) {
+    for (const rsiBuy of [25, 30, 35]) {
+      for (const rsiSell of [65, 70, 75]) {
+        const r = runSmaRsiBacktest(candles, { ...base, smaPeriod, rsiBuy, rsiSell, mode: "backtest" })
+        trials.push({ smaPeriod, rsiBuy, rsiSell, netPnl: r.netPnl })
+        if (!best || r.netPnl > best.netPnl) best = r
+      }
+    }
+  }
+  if (!best) best = runSmaRsiBacktest(candles, base)
+  best.mode = "optimize"
+  best.optimized = {
+    smaPeriod: best.smaPeriod,
+    rsiBuy: best.rsiBuy,
+    rsiSell: best.rsiSell,
+    netPnl: best.netPnl,
+  }
+  return { best, trials }
+}
+
+export function saveBacktestResult(result: BacktestResult) {
+  if (typeof window === "undefined") return
+  const prev = readBacktestResults()
+  const next = [result, ...prev].slice(0, 40)
+  window.localStorage.setItem(RESULTS_KEY, JSON.stringify(next))
+}
+
+export function readBacktestResults(): BacktestResult[] {
+  if (typeof window === "undefined") return []
+  try {
+    return JSON.parse(window.localStorage.getItem(RESULTS_KEY) || "[]")
+  } catch {
+    return []
+  }
+}
+
+export function getBacktestResult(id: string): BacktestResult | null {
+  return readBacktestResults().find((r) => r.id === id) || null
+}
+
+export function readTradingViewUsername(): string {
+  if (typeof window === "undefined") return ""
+  return window.localStorage.getItem(TV_KEY) || ""
+}
+
+export function writeTradingViewUsername(name: string) {
+  if (typeof window !== "undefined") window.localStorage.setItem(TV_KEY, name)
+}
+
+/** Re-export ema for advanced strategies later */
+export { ema }
