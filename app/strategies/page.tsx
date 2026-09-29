@@ -5,8 +5,15 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Sparkles, Copy, Check, ArrowRight } from "lucide-react"
-import { readBots, readBacktestResults, type Bot, type BacktestResult } from "@/lib/botforge"
+import { Sparkles, Copy, Check, ArrowRight, Save } from "lucide-react"
+import {
+  readBots,
+  readBacktestResults,
+  createBot,
+  addBot,
+  type Bot,
+  type BacktestResult,
+} from "@/lib/botforge"
 
 const LANGUAGES = ["Python", "MQL4", "MQL5", "Pine Script", "JavaScript", "C++", "Rust", "Elixir"]
 
@@ -18,12 +25,20 @@ export default function StrategiesPage() {
   const [codes, setCodes] = useState<Record<string, string>>({})
   const [selectedLang, setSelectedLang] = useState("Python")
   const [copied, setCopied] = useState(false)
+  const [savedMsg, setSavedMsg] = useState("")
   const [error, setError] = useState("")
   const [q, setQ] = useState("")
 
-  useEffect(() => {
+  const refresh = () => {
     setBots(readBots())
     setResults(readBacktestResults())
+  }
+
+  useEffect(() => {
+    refresh()
+    const onUp = () => refresh()
+    window.addEventListener("botforge-workspace-updated", onUp)
+    return () => window.removeEventListener("botforge-workspace-updated", onUp)
   }, [])
 
   const filteredBots = useMemo(() => {
@@ -42,6 +57,7 @@ export default function StrategiesPage() {
     setLoading(true)
     setError("")
     setCodes({})
+    setSavedMsg("")
     try {
       const r = await fetch("/api/generate-bot-code", {
         method: "POST",
@@ -67,6 +83,26 @@ export default function StrategiesPage() {
     setTimeout(() => setCopied(false), 1500)
   }
 
+  const saveAsBot = () => {
+    const code = codes[selectedLang]
+    if (!code) return
+    const name =
+      prompt.slice(0, 40).replace(/[^\w\s-]/g, "").trim() || `Strategy ${selectedLang}`
+    const bot = createBot({
+      name,
+      language: selectedLang,
+      status: "Ready",
+      code,
+      description: prompt.slice(0, 280),
+      symbol: /xau|gold/i.test(prompt) ? "XAUUSD" : /btc/i.test(prompt) ? "BTCUSDT" : "EURUSD",
+      timeframe: /m15|15m/i.test(prompt) ? "M15" : /h4/i.test(prompt) ? "H4" : "H1",
+      indicators: ["from-compiler"],
+    })
+    addBot(bot)
+    refresh()
+    setSavedMsg(`Saved “${bot.name}” under My Bots.`)
+  }
+
   return (
     <div className="bf-page">
       <div className="bf-container bf-section-gap">
@@ -74,8 +110,7 @@ export default function StrategiesPage() {
           <p className="bf-kicker">Strategies</p>
           <h1 className="bf-title">Browse & build</h1>
           <p className="bf-sub">
-            Your saved bots and completed tests appear here. Generate new strategy code in 8 languages — no demo
-            leaderboard filler.
+            Your saved bots and completed tests appear here. Generate code, then save it straight into My Bots.
           </p>
         </div>
 
@@ -105,7 +140,7 @@ export default function StrategiesPage() {
             <Button className="bf-btn-primary">Create bot</Button>
           </Link>
           <Link href="/backtest">
-            <Button variant="outline" className="bf-btn-ghost border-spotify-grey">
+            <Button variant="outline" className="border-spotify-grey">
               Run backtest
             </Button>
           </Link>
@@ -114,7 +149,7 @@ export default function StrategiesPage() {
         {filteredBots.length === 0 ? (
           <div className="bf-card-pad text-center">
             <p className="text-sm text-spotify-text-secondary">
-              No bots saved yet. Build one below or from My Bots — cards here will show real names, symbols, and status.
+              No bots saved yet. Generate below and hit Save as bot, or use Create bot.
             </p>
           </div>
         ) : (
@@ -139,13 +174,6 @@ export default function StrategiesPage() {
                   </Badge>
                 </div>
                 <p className="line-clamp-2 text-sm text-spotify-text-secondary">{b.description || "No description"}</p>
-                <div className="flex flex-wrap gap-1">
-                  {b.indicators.slice(0, 4).map((i) => (
-                    <span key={i} className="bf-badge-muted">
-                      {i}
-                    </span>
-                  ))}
-                </div>
                 <Link href="/bots" className="mt-auto text-sm text-spotify-green hover:underline">
                   Manage in My Bots <ArrowRight className="ml-1 inline h-3 w-3" />
                 </Link>
@@ -213,6 +241,7 @@ export default function StrategiesPage() {
               {loading ? "Generating…" : "Generate code"}
             </Button>
             {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
+            {savedMsg && <p className="text-sm text-spotify-green">{savedMsg}</p>}
             {Object.keys(codes).length > 0 && (
               <div>
                 <div className="mb-3 flex flex-wrap gap-2">
@@ -230,9 +259,12 @@ export default function StrategiesPage() {
                       {lang}
                     </button>
                   ))}
-                  <Button size="sm" variant="outline" onClick={copy} className="ml-auto border-spotify-grey">
+                  <Button size="sm" variant="outline" onClick={copy} className="border-spotify-grey">
                     {copied ? <Check className="mr-1 h-3 w-3" /> : <Copy className="mr-1 h-3 w-3" />}
                     {copied ? "Copied" : "Copy"}
+                  </Button>
+                  <Button size="sm" onClick={saveAsBot} className="bg-spotify-green text-spotify-black">
+                    <Save className="mr-1 h-3 w-3" /> Save as bot
                   </Button>
                 </div>
                 <pre className="max-h-[420px] overflow-auto rounded-xl bg-spotify-black p-4 text-xs leading-relaxed text-spotify-text-secondary">
