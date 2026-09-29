@@ -37,6 +37,16 @@ type BrokerAccount = {
   connectedAt: string
 }
 
+type Tx = {
+  id?: string
+  time?: string
+  type?: string
+  instrument?: string
+  units?: string
+  pl?: string
+  price?: string
+}
+
 export default function BrokersPage() {
   const [brokerId, setBrokerId] = useState("oanda")
   const [accountId, setAccountId] = useState("")
@@ -45,6 +55,17 @@ export default function BrokersPage() {
   const [account, setAccount] = useState<BrokerAccount | null>(null)
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
+  const [history, setHistory] = useState<Tx[]>([])
+
+  const loadHistory = async () => {
+    try {
+      const r = await fetch("/api/brokers/oanda/history", { cache: "no-store" })
+      const d = await r.json()
+      if (r.ok && Array.isArray(d.transactions)) setHistory(d.transactions)
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     try {
@@ -54,6 +75,7 @@ export default function BrokersPage() {
         setAccount(data)
         setConnected(true)
         if (data.brokerId) setBrokerId(data.brokerId)
+        if (data.brokerId === "oanda") void loadHistory()
       }
     } catch {}
   }, [])
@@ -91,10 +113,44 @@ export default function BrokersPage() {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
           setPassword("")
           setMessage("Connected to OANDA practice.")
+          await loadHistory()
           setLoading(false)
           return
         }
         setMessage(d.error || "OANDA connection failed")
+        setLoading(false)
+        return
+      }
+
+      if (brokerId === "binance" && password.length > 10) {
+        const r = await fetch("/api/brokers/binance/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey: accountId.trim(), apiSecret: password }),
+        })
+        const d = await r.json()
+        if (r.ok && d.ok) {
+          const next: BrokerAccount = {
+            accountId: accountId.trim().slice(0, 8) + "…",
+            balance: Number(d.usdtFree) || 0,
+            equity: Number(d.usdtFree) || 0,
+            marginUsed: 0,
+            freeMargin: Number(d.usdtFree) || 0,
+            currency: "USDT",
+            leverage: "—",
+            server: d.accountType || "Binance",
+            brokerId: "binance",
+            connectedAt: new Date().toISOString(),
+          }
+          setAccount(next)
+          setConnected(true)
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+          setPassword("")
+          setMessage("Binance API key validated (read-only).")
+          setLoading(false)
+          return
+        }
+        setMessage(d.error || "Binance validation failed")
         setLoading(false)
         return
       }
@@ -116,7 +172,7 @@ export default function BrokersPage() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       setPassword("")
       setMessage(
-        `Session stored for ${BROKERS.find((b) => b.id === brokerId)?.name}. Live balances require that broker’s API credentials on the server.`,
+        `Session stored for ${BROKERS.find((b) => b.id === brokerId)?.name}. Live balances need that broker’s API on the server.`,
       )
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Connection failed")
@@ -132,6 +188,7 @@ export default function BrokersPage() {
     localStorage.removeItem(STORAGE_KEY)
     setConnected(false)
     setAccount(null)
+    setHistory([])
     setMessage("Disconnected.")
   }
 
@@ -142,8 +199,8 @@ export default function BrokersPage() {
           <p className="bf-kicker">Brokers</p>
           <h1 className="bf-title">Connect account</h1>
           <p className="bf-sub">
-            OANDA practice uses live REST when you paste a real token. MT and others store a session for the workspace until
-            full adapters are enabled with API keys.
+            OANDA: live REST + transaction history. Binance: API key validation. MT and others: session until adapters
+            are fully wired.
           </p>
         </div>
 
@@ -164,10 +221,10 @@ export default function BrokersPage() {
                 <Badge
                   className={
                     b.status === "live"
-                      ? "bg-spotify-green/15 text-spotify-green border-0"
+                      ? "border-0 bg-spotify-green/15 text-spotify-green"
                       : b.status === "beta"
-                        ? "bg-amber-500/15 text-amber-300 border-0"
-                        : "bg-spotify-grey text-spotify-text-secondary border-0"
+                        ? "border-0 bg-amber-500/15 text-amber-300"
+                        : "border-0 bg-spotify-grey text-spotify-text-secondary"
                   }
                 >
                   {b.status}
@@ -211,11 +268,52 @@ export default function BrokersPage() {
                     </div>
                   ))}
                 </div>
+
+                {account.brokerId === "oanda" && (
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-sm font-medium">Account history</p>
+                      <Button size="sm" variant="outline" className="border-spotify-grey" onClick={loadHistory}>
+                        Refresh
+                      </Button>
+                    </div>
+                    {history.length === 0 ? (
+                      <p className="text-xs text-spotify-text-secondary">No transactions loaded yet.</p>
+                    ) : (
+                      <div className="max-h-64 overflow-auto rounded-xl border border-spotify-grey">
+                        <table className="w-full text-left text-xs">
+                          <thead className="sticky top-0 bg-spotify-black text-spotify-text-secondary">
+                            <tr>
+                              <th className="p-2">Time</th>
+                              <th className="p-2">Type</th>
+                              <th className="p-2">Instrument</th>
+                              <th className="p-2">P/L</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {history.map((t) => (
+                              <tr key={t.id} className="border-t border-spotify-grey/60">
+                                <td className="p-2 whitespace-nowrap">
+                                  {t.time ? new Date(t.time).toLocaleString() : "—"}
+                                </td>
+                                <td className="p-2">{t.type}</td>
+                                <td className="p-2">{t.instrument || "—"}</td>
+                                <td className="p-2 font-mono">{t.pl ?? "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <>
                 <div>
-                  <Label className="text-spotify-text-secondary">Account / key id</Label>
+                  <Label className="text-spotify-text-secondary">
+                    {brokerId === "binance" ? "API key" : "Account / key id"}
+                  </Label>
                   <Input
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
@@ -223,7 +321,9 @@ export default function BrokersPage() {
                   />
                 </div>
                 <div>
-                  <Label className="text-spotify-text-secondary">Password / API token</Label>
+                  <Label className="text-spotify-text-secondary">
+                    {brokerId === "binance" ? "API secret" : "Password / API token"}
+                  </Label>
                   <Input
                     type="password"
                     value={password}
