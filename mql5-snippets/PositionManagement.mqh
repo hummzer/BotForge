@@ -4,6 +4,11 @@
 #ifndef BOTFORGE_POSITIONMANAGEMENT_MQH
 #define BOTFORGE_POSITIONMANAGEMENT_MQH
 
+#include <Trade/Trade.mqh>
+
+// Shared trade object for modify/close helpers (EA may also declare its own)
+CTrade g_botforge_trade;
+
 int CountPositions(const string symbol)
 {
    int n = 0;
@@ -31,9 +36,9 @@ void MoveToBreakeven(const string symbol, double bufferPips = 1)
       double be = (type == POSITION_TYPE_BUY) ? open + bufferPips * pip : open - bufferPips * pip;
       be = NormalizeDouble(be, digits);
       if(type == POSITION_TYPE_BUY && (sl < open || sl == 0))
-         trade.PositionModify(ticket, be, PositionGetDouble(POSITION_TP));
+         g_botforge_trade.PositionModify(ticket, be, PositionGetDouble(POSITION_TP));
       if(type == POSITION_TYPE_SELL && (sl > open || sl == 0))
-         trade.PositionModify(ticket, be, PositionGetDouble(POSITION_TP));
+         g_botforge_trade.PositionModify(ticket, be, PositionGetDouble(POSITION_TP));
    }
 }
 
@@ -56,12 +61,12 @@ void TrailByPips(const string symbol, double trailPips)
       if(type == POSITION_TYPE_BUY)
       {
          double ns = NormalizeDouble(bid - trail, digits);
-         if(ns > sl && ns > open) trade.PositionModify(ticket, ns, PositionGetDouble(POSITION_TP));
+         if(ns > sl && ns > open) g_botforge_trade.PositionModify(ticket, ns, PositionGetDouble(POSITION_TP));
       }
       else
       {
          double ns = NormalizeDouble(ask + trail, digits);
-         if((ns < sl || sl == 0) && ns < open) trade.PositionModify(ticket, ns, PositionGetDouble(POSITION_TP));
+         if((ns < sl || sl == 0) && ns < open) g_botforge_trade.PositionModify(ticket, ns, PositionGetDouble(POSITION_TP));
       }
    }
 }
@@ -73,7 +78,7 @@ void CloseAll(const string symbol)
       ulong ticket = PositionGetTicket(i);
       if(!PositionSelectByTicket(ticket)) continue;
       if(PositionGetString(POSITION_SYMBOL) != symbol) continue;
-      trade.PositionClose(ticket);
+      g_botforge_trade.PositionClose(ticket);
    }
 }
 
