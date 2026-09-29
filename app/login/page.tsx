@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [error, setError] = useState("")
 
   useEffect(() => {
-    if (!loading && user) router.replace("/strategies")
+    if (!loading && user) router.replace("/dashboard")
   }, [user, loading, router])
 
   const handle = async (provider: "google" | "github") => {
@@ -25,7 +25,7 @@ export default function LoginPage() {
     setError("")
     try {
       await login(provider)
-      router.replace("/strategies")
+      router.replace("/dashboard")
     } catch (e) {
       setError(e instanceof Error ? e.message : "Login failed")
     } finally {
@@ -38,7 +38,7 @@ export default function LoginPage() {
     setError("")
     try {
       await login("mql5", { mql5Login, mql5Password })
-      router.replace("/strategies")
+      router.replace("/dashboard")
     } catch (e) {
       setError(e instanceof Error ? e.message : "MQL5 login failed")
     } finally {
@@ -117,10 +117,6 @@ export default function LoginPage() {
               <Button disabled={busy} onClick={handleMql5} className="bf-btn-primary w-full">
                 Sign in with MQL5
               </Button>
-              <p className="text-[11px] text-spotify-text-secondary">
-                Session is stored locally. Server-side MetaQuotes OAuth can replace this when app credentials are
-                issued.
-              </p>
             </div>
 
             {error && <p className="text-sm text-red-400">{error}</p>}
