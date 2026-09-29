@@ -17,12 +17,12 @@ const publicLinks = [
 ]
 
 const privateLinks = [
-  { name: "Strategies", href: "/strategies" },
+  { name: "Browse Strategies", href: "/strategies" },
+  { name: "Strategy Report", href: "/backtest/report" },
   { name: "My Bots", href: "/bots" },
   { name: "Backtesting", href: "/backtest" },
   { name: "Journal", href: "/journal" },
   { name: "Brokers", href: "/brokers" },
-  { name: "Market Data", href: "/data" },
   { name: "Settings", href: "/settings" },
 ]
 
@@ -33,7 +33,6 @@ const protectedPaths = [
   "/backtest",
   "/journal",
   "/brokers",
-  "/data",
   "/settings",
   "/chart",
 ]
@@ -46,9 +45,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return
     const needsAuth = protectedPaths.some((p) => pathname === p || pathname.startsWith(p + "/"))
-    if (needsAuth && !user) {
-      router.replace("/login")
-    }
+    if (needsAuth && !user) router.replace("/login")
   }, [user, loading, pathname, router])
 
   if (loading) {
@@ -58,7 +55,6 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       </div>
     )
   }
-
   return <>{children}</>
 }
 
@@ -68,9 +64,10 @@ function Navigation() {
   const links = user ? [...publicLinks, ...privateLinks] : publicLinks
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-spotify-grey bg-spotify-dark-grey/95 py-3 backdrop-blur">
-      <div className="container mx-auto flex max-w-6xl flex-col items-center gap-3 px-4 md:flex-row md:justify-between">
-        <Link href="/" className="font-display text-2xl font-bold text-spotify-green">
+    <header className="sticky top-0 z-50 w-full border-b border-spotify-grey bg-[#0b0f14]/95 py-3 backdrop-blur">
+      <div className="container mx-auto flex max-w-7xl flex-col items-center gap-3 px-4 md:flex-row md:justify-between">
+        <Link href="/" className="flex items-center gap-2 font-display text-xl font-bold text-white">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-sm">BF</span>
           BotForge
         </Link>
         <nav className="flex flex-wrap justify-center gap-4 text-sm">
@@ -79,8 +76,9 @@ function Navigation() {
               key={link.href}
               href={link.href}
               className={cn(
-                "font-medium text-spotify-text-secondary transition-colors hover:text-spotify-green",
-                pathname === link.href && "text-spotify-green",
+                "rounded-full px-3 py-1.5 font-medium text-zinc-400 transition-colors hover:text-white",
+                (pathname === link.href || pathname.startsWith(link.href + "/")) &&
+                  "bg-violet-600/20 text-violet-300",
               )}
             >
               {link.name}
@@ -90,20 +88,15 @@ function Navigation() {
         <div className="flex items-center gap-3">
           {user ? (
             <>
-              <span className="hidden text-sm text-spotify-text-secondary sm:inline">{user.name}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={logout}
-                className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
-              >
+              <span className="hidden text-sm text-zinc-400 sm:inline">{user.name}</span>
+              <Button variant="ghost" size="sm" onClick={logout} className="text-red-400 hover:text-red-300">
                 Logout
               </Button>
             </>
           ) : (
             <Link href="/login">
-              <Button size="sm" className="bg-spotify-green text-spotify-black hover:bg-spotify-green/90">
-                Sign In
+              <Button size="sm" className="bg-violet-600 text-white hover:bg-violet-500">
+                Account
               </Button>
             </Link>
           )}
@@ -118,7 +111,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     <html lang="en" suppressHydrationWarning>
       <body
         className={cn(
-          "min-h-screen bg-spotify-black font-sans antialiased text-spotify-text-primary flex flex-col",
+          "min-h-screen bg-[#070a0e] font-sans antialiased text-zinc-100 flex flex-col",
           inter.variable,
           orbitron.variable,
           firaCode.variable,

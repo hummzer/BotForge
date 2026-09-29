@@ -1,141 +1,243 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useMemo, useState } from "react"
+import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
-import { Sparkles, Copy, Check } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-const LANGUAGES = ["Python", "MQL4", "MQL5", "Pine Script", "JavaScript", "C++", "Rust", "Elixir"]
+type StrategyCard = {
+  id: string
+  pair: string
+  tf: string
+  version: string
+  author: string
+  netPnlPct: number
+  maxDdPct: number
+  winRate: number
+  profitFactor: number
+  trades: number
+  equity: number[]
+}
 
-const SUGGESTIONS = [
-  "Buy when price is above 50 SMA and RSI crosses above 30 from oversold. Sell when price is below 50 SMA and RSI crosses below 70. 1% risk, 1:2 R:R.",
-  "MACD histogram cross with EMA 200 trend filter, ATR-based stop, take profit at 2x ATR.",
-  "Liquidity sweep of prior day high/low, confirm BOS on H1, enter on M15 retracement with defined risk.",
+const DEMO: StrategyCard[] = [
+  {
+    id: "bnbusdt-2h-a",
+    pair: "BNBUSDT",
+    tf: "2h",
+    version: "v1",
+    author: "Anonymous",
+    netPnlPct: 19978.73,
+    maxDdPct: -6.48,
+    winRate: 55.1,
+    profitFactor: 10.35,
+    trades: 1432,
+    equity: [0, 2, 5, 8, 12, 18, 25, 40, 55, 72, 90, 110],
+  },
+  {
+    id: "bnbusdt-2h-b",
+    pair: "BNBUSDT",
+    tf: "2h",
+    version: "v1",
+    author: "Anonymous",
+    netPnlPct: 19978.73,
+    maxDdPct: -6.48,
+    winRate: 55.1,
+    profitFactor: 10.35,
+    trades: 1432,
+    equity: [0, 3, 6, 9, 14, 20, 28, 42, 58, 75, 95, 115],
+  },
+  {
+    id: "ltcusdt-1h-a",
+    pair: "LTCUSDT",
+    tf: "1h",
+    version: "v1",
+    author: "Anonymous",
+    netPnlPct: 19972.77,
+    maxDdPct: -21.93,
+    winRate: 60.1,
+    profitFactor: 2.77,
+    trades: 2145,
+    equity: [0, 1, 4, 7, 11, 16, 24, 35, 48, 62, 80, 100],
+  },
+  {
+    id: "xauusd-h1-a",
+    pair: "XAUUSD",
+    tf: "1h",
+    version: "v2",
+    author: "BotForge",
+    netPnlPct: 842.5,
+    maxDdPct: -12.4,
+    winRate: 58.2,
+    profitFactor: 1.92,
+    trades: 486,
+    equity: [0, 2, 3, 5, 8, 10, 14, 18, 22, 28, 35, 42],
+  },
 ]
 
+function Sparkline({ data }: { data: number[] }) {
+  const max = Math.max(...data, 1)
+  const min = Math.min(...data, 0)
+  const w = 220
+  const h = 56
+  const pts = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * w
+      const y = h - ((v - min) / (max - min || 1)) * (h - 4) - 2
+      return `${x},${y}`
+    })
+    .join(" ")
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-14 w-full">
+      <polyline fill="none" stroke="#34d399" strokeWidth="2" points={pts} />
+    </svg>
+  )
+}
+
 export default function StrategiesPage() {
-  const [prompt, setPrompt] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [codes, setCodes] = useState<Record<string, string>>({})
-  const [selectedLang, setSelectedLang] = useState("Python")
-  const [copied, setCopied] = useState(false)
-  const [error, setError] = useState("")
+  const [pair, setPair] = useState("all")
+  const [tf, setTf] = useState("all")
+  const [minPnl, setMinPnl] = useState("")
+  const [minPf, setMinPf] = useState("")
+  const [sort, setSort] = useState("profit")
 
-  const generate = async () => {
-    if (!prompt.trim()) return
-    setLoading(true)
-    setError("")
-    setCodes({})
-    try {
-      const r = await fetch("/api/generate-bot-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, languages: LANGUAGES }),
-      })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.error || "Generation failed")
-      setCodes(d.codes || {})
-      const first = Object.keys(d.codes || {})[0]
-      if (first) setSelectedLang(first)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Generation failed")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const copy = async () => {
-    const text = codes[selectedLang]
-    if (!text) return
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
+  const filtered = useMemo(() => {
+    let rows = [...DEMO]
+    if (pair !== "all") rows = rows.filter((r) => r.pair === pair)
+    if (tf !== "all") rows = rows.filter((r) => r.tf === tf)
+    if (minPnl) rows = rows.filter((r) => r.netPnlPct >= Number(minPnl))
+    if (minPf) rows = rows.filter((r) => r.profitFactor >= Number(minPf))
+    rows.sort((a, b) => (sort === "pf" ? b.profitFactor - a.profitFactor : b.netPnlPct - a.netPnlPct))
+    return rows
+  }, [pair, tf, minPnl, minPf, sort])
 
   return (
-    <div className="min-h-screen bg-spotify-black py-10 text-spotify-text-primary">
-      <div className="container mx-auto max-w-5xl px-4">
-        <p className="text-xs tracking-[0.3em] text-spotify-green">BOTFORGE · STRATEGY ENGINE</p>
-        <h1 className="mt-3 font-display text-4xl font-bold">Strategy Builder</h1>
-        <p className="mb-8 mt-2 max-w-2xl text-sm text-spotify-text-secondary">
-          Describe your strategy in plain English. The engine uses indicators and market-structure logic to generate production-ready code in all 8 languages.
+    <div className="min-h-screen bg-[#070a0e] py-10 text-zinc-100">
+      <div className="container mx-auto max-w-7xl px-4">
+        <h1 className="text-3xl font-bold tracking-tight">Browse Strategies</h1>
+        <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+          Public trading strategies, ranked by leaderboard performance. Filter by KPI, fork what catches your eye,
+          iterate.
         </p>
 
-        <Card className="border-spotify-grey bg-spotify-dark-grey shadow-2xl">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Describe your strategy</CardTitle>
-              <Badge className="bg-spotify-green text-spotify-black">8 languages</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Example: Buy when price is above 50 SMA and RSI crosses above 30 from oversold. Sell when below 50 SMA and RSI crosses below 70. Use 1% risk and 1:2 risk-to-reward."
-              className="min-h-[140px] w-full rounded-xl border border-spotify-grey bg-spotify-black p-4 text-sm text-spotify-text-primary placeholder:text-spotify-text-secondary outline-none focus:border-spotify-green"
-            />
-            <div className="flex flex-wrap gap-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s.slice(0, 24)}
-                  type="button"
-                  onClick={() => setPrompt(s)}
-                  className="rounded-full border border-spotify-grey px-3 py-1.5 text-xs text-spotify-text-secondary hover:border-spotify-green hover:text-spotify-green"
-                >
-                  + {s.slice(0, 48)}…
-                </button>
-              ))}
-            </div>
-            <Button
-              onClick={generate}
-              disabled={loading || !prompt.trim()}
-              className="w-full bg-spotify-green text-spotify-black hover:bg-spotify-green/90 h-12"
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              {loading ? "Generating code in 8 languages…" : "Generate Code (8 Languages)"}
-            </Button>
-            {error && (
-              <p className="text-sm text-red-400 border border-red-400/30 rounded-lg p-3 bg-red-400/10">{error}</p>
-            )}
-          </CardContent>
-        </Card>
+        <div className="mt-8 rounded-2xl border border-zinc-800 bg-[#0d1218] px-6 py-8 text-center">
+          <p className="text-4xl font-semibold tracking-tight text-violet-300 md:text-5xl">1,111,912</p>
+          <p className="mt-2 text-xs uppercase tracking-[0.25em] text-zinc-500">Backtests</p>
+        </div>
 
-        {Object.keys(codes).length > 0 && (
-          <div className="mt-8 animate-fade-in-up">
-            <div className="flex flex-wrap gap-2 mb-4">
-              {Object.keys(codes).map((lang) => (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => setSelectedLang(lang)}
-                  className={
-                    selectedLang === lang
-                      ? "rounded-lg bg-spotify-green px-4 py-2 text-sm font-medium text-spotify-black"
-                      : "rounded-lg bg-spotify-grey px-4 py-2 text-sm text-spotify-text-secondary hover:text-white"
-                  }
-                >
-                  {lang}
-                </button>
-              ))}
-            </div>
-            <Card className="border-spotify-grey bg-spotify-dark-grey overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between border-b border-spotify-grey py-3">
-                <CardTitle className="text-base">{selectedLang}</CardTitle>
-                <Button variant="outline" size="sm" onClick={copy} className="border-spotify-grey">
-                  {copied ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-                  {copied ? "Copied" : "Copy"}
-                </Button>
-              </CardHeader>
-              <CardContent className="p-0">
-                <pre className="max-h-[520px] overflow-auto p-4 text-xs leading-relaxed text-spotify-text-secondary font-mono bg-spotify-black">
-                  {codes[selectedLang]}
-                </pre>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Select value={pair} onValueChange={setPair}>
+            <SelectTrigger className="w-[140px] border-zinc-700 bg-[#0d1218]">
+              <SelectValue placeholder="All pairs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All pairs</SelectItem>
+              <SelectItem value="BNBUSDT">BNBUSDT</SelectItem>
+              <SelectItem value="LTCUSDT">LTCUSDT</SelectItem>
+              <SelectItem value="XAUUSD">XAUUSD</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={tf} onValueChange={setTf}>
+            <SelectTrigger className="w-[120px] border-zinc-700 bg-[#0d1218]">
+              <SelectValue placeholder="TF" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All TF</SelectItem>
+              <SelectItem value="1h">1h</SelectItem>
+              <SelectItem value="2h">2h</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            placeholder="Min P&L %"
+            value={minPnl}
+            onChange={(e) => setMinPnl(e.target.value)}
+            className="w-[120px] border-zinc-700 bg-[#0d1218]"
+          />
+          <Input
+            placeholder="Min PF"
+            value={minPf}
+            onChange={(e) => setMinPf(e.target.value)}
+            className="w-[100px] border-zinc-700 bg-[#0d1218]"
+          />
+          <Select value={sort} onValueChange={setSort}>
+            <SelectTrigger className="w-[140px] border-zinc-700 bg-[#0d1218]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="profit">Best profit</SelectItem>
+              <SelectItem value="pf">Best PF</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button className="bg-violet-600 hover:bg-violet-500">Filter</Button>
+          <Button
+            variant="outline"
+            className="border-zinc-700"
+            onClick={() => {
+              setPair("all")
+              setTf("all")
+              setMinPnl("")
+              setMinPf("")
+              setSort("profit")
+            }}
+          >
+            Clear
+          </Button>
+        </div>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {filtered.map((s) => (
+            <Link
+              key={s.id}
+              href={`/backtest/report?id=${s.id}`}
+              className="group rounded-2xl border border-zinc-800 bg-[#0d1218] p-4 transition hover:border-violet-500/50"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-lg font-semibold">
+                    {s.pair} {s.tf}
+                  </p>
+                  <p className="text-xs text-zinc-500">{s.version}</p>
+                </div>
+                <Badge className="bg-emerald-500/15 text-emerald-400 border-0">PUBLIC</Badge>
+              </div>
+              <p className="mt-2 text-xs text-zinc-500">by {s.author}</p>
+              <div className="mt-3">
+                <Sparkline data={s.equity} />
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <p className="text-zinc-500">NET P&L %</p>
+                  <p className="font-semibold text-emerald-400">+{s.netPnlPct.toFixed(2)}%</p>
+                </div>
+                <div>
+                  <p className="text-zinc-500">MAX DD %</p>
+                  <p className="font-semibold text-red-400">{s.maxDdPct.toFixed(2)}%</p>
+                </div>
+                <div>
+                  <p className="text-zinc-500">WIN RATE</p>
+                  <p className="font-semibold">{s.winRate.toFixed(1)}%</p>
+                </div>
+                <div>
+                  <p className="text-zinc-500">PF / TRADES</p>
+                  <p className="font-semibold">
+                    {s.profitFactor.toFixed(2)} / {s.trades}
+                  </p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        <div className="mt-10 rounded-2xl border border-zinc-800 bg-[#0d1218] p-6">
+          <h2 className="text-lg font-semibold">Build your own</h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Describe a strategy in plain English and compile to 8 languages via the engine.
+          </p>
+          <Link href="/bots/create">
+            <Button className="mt-4 bg-violet-600 hover:bg-violet-500">Open strategy builder</Button>
+          </Link>
+        </div>
       </div>
     </div>
   )
