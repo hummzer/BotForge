@@ -15,10 +15,11 @@ import { Menu, X } from "lucide-react"
 const publicLinks = [
   { name: "Home", href: "/" },
   { name: "Pricing", href: "/pricing" },
-  { name: "Calendar", href: "/calendar" },
+  { name: "Marketplace", href: "/marketplace" },
 ]
 
 const privateLinks = [
+  { name: "Dashboard", href: "/dashboard" },
   { name: "Strategies", href: "/strategies" },
   { name: "Bots", href: "/bots" },
   { name: "Backtest", href: "/backtest" },
@@ -29,6 +30,7 @@ const privateLinks = [
 ]
 
 const protectedPaths = [
+  "/dashboard",
   "/strategies",
   "/bots",
   "/live-bots",
@@ -73,7 +75,7 @@ function Navigation() {
           BotForge
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex">
+        <nav className="hidden items-center gap-1 xl:flex">
           {links.map((link) => (
             <Link
               key={link.href}
@@ -93,7 +95,7 @@ function Navigation() {
           {user ? (
             <>
               <Link
-                href="/settings"
+                href="/dashboard"
                 className="hidden text-sm text-spotify-text-secondary hover:text-spotify-green sm:inline"
               >
                 {user.name}
@@ -117,7 +119,7 @@ function Navigation() {
           )}
           <button
             type="button"
-            className="rounded-lg p-2 text-spotify-text-secondary lg:hidden"
+            className="rounded-lg p-2 text-spotify-text-secondary xl:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-label="Menu"
           >
@@ -126,7 +128,7 @@ function Navigation() {
         </div>
       </div>
       {open && (
-        <nav className="border-t border-spotify-grey px-4 py-3 lg:hidden">
+        <nav className="border-t border-spotify-grey px-4 py-3 xl:hidden">
           <div className="flex flex-col gap-1">
             {links.map((link) => (
               <Link
