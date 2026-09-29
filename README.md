@@ -1,50 +1,114 @@
-# BotForge — Trading Bot Platform
+# BotForge
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+Trading workspace: **browse strategies**, **compile plain-English strategies** into 8 languages, **backtest**, **journal**, and **connect brokers**. Dark UI inspired by TraderDev / TradingKit.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/salimhamza127-4151s-projects/v0-trading-bot-platform)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/1A7lkhnhnqS)
+**Repo:** [hummzer/BotForge](https://github.com/hummzer/BotForge)
 
-## Overview
+## Stack
 
-BotForge is a trading-bot workspace for building strategies, backtesting, journaling trades, and connecting brokers.
+- Next.js 15 + TypeScript + Tailwind + Radix UI
+- Strategy engine: `lib/engine/` (spec → indicators → backtest → generators)
+- Payments: Safaricom Daraja (M-Pesa production STK) + PayPal Orders API
+- Broker bridge: OANDA practice REST + session bridges for MT4/MT5 and others
 
-The main app is a Next.js + TypeScript project (synced from v0.dev).
+## Quick start
 
-### Standalone HTML version
+```bash
+npm install
+npm run dev
+```
 
-A single-file React + Tailwind version lives at:
+```bash
+npm run build        # production build
+npm run typecheck    # tsc --noEmit
+npm run test:engine  # smoke-test engines + generators
+```
 
-**[`standalone/index.html`](./standalone/index.html)**
+## Main routes
 
-Features in the standalone build:
-- Auth (Google / GitHub mock)
-- Live BTC price (Binance REST + WebSocket)
-- Strategy builder shell (8-language code generation UI)
-- Dashboard / Bots / Backtest / Journal / Brokers / Calendar / Settings / Pricing navigation
-- LocalStorage persistence for bots, journal, and broker connection
-- Spotify-inspired dark theme (Orbitron + Inter + Fira Code)
+| Path | Purpose |
+|------|---------|
+| `/strategies` | Browse Strategies (leaderboard-style cards + filters) |
+| `/backtest` | Run backtests |
+| `/backtest/report` | TradingKit-style performance report |
+| `/bots` · `/bots/create` | Saved bots · strategy builder / code gen |
+| `/brokers` | Connect MT4/MT5, OANDA, cTrader, Deriv, IBKR, Binance, … |
+| `/journal` | Trade journal |
+| `/pricing` | Plans + M-Pesa / PayPal checkout |
+| `/settings` | Account settings |
 
-Open `standalone/index.html` directly in a browser (or host it on any static server / GitHub Pages).
+`/data` (Market Data import) was removed and redirects to `/strategies`.
 
-## Deployment
+## Strategy engine
 
-Main app live at:
+```
+lib/engine/
+  spec.ts          StrategySpec (Zod) — entry rules, risk, management, filters
+  indicators.ts    SMA/EMA/RSI/MACD/BB/ATR/Stoch/Donchian + BOS/sweep structure
+  backtest.ts      Bar-by-bar simulation
+  gen/             python · mql4 · mql5 · pine · javascript · cpp · rust · elixir
+mql5-snippets/     Structure · RiskMoney · PositionManagement · Filters
+```
 
-**[https://vercel.com/salimhamza127-4151s-projects/v0-trading-bot-platform](https://vercel.com/salimhamza127-4151s-projects/v0-trading-bot-platform)**
+API: `POST /api/generate-bot-code` compiles a free-text prompt or structured `spec` into source for selected languages (deterministic engine; optional `useAi: true`).
 
-## Build your app
+## Brokers
 
-Continue building on:
+| Venue | Status | Notes |
+|-------|--------|--------|
+| MetaTrader 5 / 4 | live (session) | Credentials stored in browser session for dashboard |
+| OANDA | live | Practice REST; token + account id → `/api/brokers/oanda/connect` |
+| cTrader, Deriv, Binance | beta | Session bridge |
+| IBKR, Bybit, FXCM | planned | UI listed |
+| Pepperstone, IC Markets, Exness | via MT | Use MT4/MT5 bridge |
 
-**[https://v0.dev/chat/projects/1A7lkhnhnqS](https://v0.dev/chat/projects/1A7lkhnhnqS)**
+Set a real OANDA practice token (long string) as password with the account id for live practice equity.
 
-## How It Works
+## Payments
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+| Method | Endpoint | Env |
+|--------|----------|-----|
+| M-Pesa STK | `POST /api/payments/mpesa/stk` | `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_PASSKEY`, `MPESA_SHORTCODE`, `MPESA_CALLBACK_URL` |
+| M-Pesa callback | `POST /api/payments/mpesa/callback` | (production Daraja) |
+| PayPal | `POST /api/payments/paypal/create` | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` |
+
+Manual fallbacks on `/pricing`:
+- M-Pesa: **0716 475 923**
+- PayPal: **salimhamza371@gmail.com**
+
+Without env vars, APIs return `503` with setup instructions and the UI falls back to manual pay.
+
+## Environment (Vercel)
+
+```
+OPENAI_API_KEY=              # optional AI fallback for generate-bot-code
+MPESA_CONSUMER_KEY=
+MPESA_CONSUMER_SECRET=
+MPESA_PASSKEY=
+MPESA_SHORTCODE=
+MPESA_CALLBACK_URL=https://<your-domain>/api/payments/mpesa/callback
+PAYPAL_CLIENT_ID=
+PAYPAL_CLIENT_SECRET=
+```
+
+## What remains / known gaps
+
+1. **Generators depth** — Core paths work for all 8 languages; full parity with the original zip (richer MQL / C++ / Rust bodies) can be deepened further.
+2. **MQL5 private repo** — `hummzer/MQL5` is mostly compiled `.ex4`/`.ex5` EAs, not `.mqh` sources. Snippets in `mql5-snippets/` are maintained here for automation.
+3. **Live strategy leaderboard data** — Browse page uses demo leaderboard cards; wire to a DB/API when ready.
+4. **Broker adapters** — Only OANDA practice is full REST; others use local session until each API adapter is finished.
+5. **Auth** — Client-side auth context; production should use a real provider (Clerk/Auth.js) + server session.
+6. **Payment fulfillment** — STK/PayPal create orders; persist `ResultCode 0` / captured orders and unlock Pro/Quant entitlements in DB.
+7. **npm audit** — Several dependency advisories; run `npm audit` and upgrade carefully on Next 15.
+
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Local development |
+| `npm run build` | Production build |
+| `npm run typecheck` | TypeScript check |
+| `npm run test:engine` | Engine + generator smoke test |
 
 ---
 
