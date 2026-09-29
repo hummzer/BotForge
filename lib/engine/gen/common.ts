@@ -3,46 +3,70 @@ import { OUTPUTS } from "../spec"
 
 export const LANGS = ["python", "mql4", "mql5", "pine", "javascript", "cpp", "rust", "elixir"] as const
 export type Lang = (typeof LANGS)[number]
-export const LANG_META: Record<Lang, { label: string; ext: string; file: (base: string) => string }> = {
-  python: { label: "Python", ext: "py", file: (b) => `${b}.py` },
-  mql4: { label: "MQL4", ext: "mq4", file: (b) => `${b}.mq4` },
-  mql5: { label: "MQL5", ext: "mq5", file: (b) => `${b}.mq5` },
-  pine: { label: "Pine Script", ext: "pine", file: (b) => `${b}.pine` },
-  javascript: { label: "JavaScript", ext: "js", file: (b) => `${b}.js` },
-  cpp: { label: "C++", ext: "cpp", file: (b) => `${b}.cpp` },
-  rust: { label: "Rust", ext: "rs", file: (b) => `${b}.rs` },
-  elixir: { label: "Elixir", ext: "ex", file: (b) => `${b}.ex` },
+export const LANG_META: Record<Lang, { label: string; file: (name: string) => string }> = {
+  python: { label: "Python", file: n => `${n}.py` },
+  mql4: { label: "MQL4", file: n => `${n}.mq4` },
+  mql5: { label: "MQL5", file: n => `${n}.mq5` },
+  pine: { label: "Pine Script", file: n => `${n}.pine` },
+  javascript: { label: "JavaScript", file: n => `${n}.js` },
+  cpp: { label: "C++", file: n => `${n}.cpp` },
+  rust: { label: "Rust", file: n => `${n}.rs` },
+  elixir: { label: "Elixir", file: n => `${n}.ex` },
 }
 
-export function slug(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "strategy"
+export const slug = (s: string) => s.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "BotForgeBot"
+
+export type Feature = { key: string; kind: "bp" | "sw"; swing: number; fibMin: number; fibMax: number }
+export const featKey = (r: Rule) => r.kind === "bos_pullback" ? `bp:${r.swing}:${r.fibMin}:${r.fibMax}` : r.kind === "sweep" ? `sw:${r.swing}` : ""
+
+export function features(spec: StrategySpec): Feature[] {
+  const m = new Map<string, Feature>()
+  for (const r of [...spec.entry.long, ...spec.entry.short]) {
+    if (r.kind === "bos_pullback") m.set(featKey(r), { key: featKey(r), kind: "bp", swing: r.swing, fibMin: r.fibMin, fibMax: r.fibMax })
+    if (r.kind === "sweep") m.set(featKey(r), { key: featKey(r), kind: "sw", swing: r.swing, fibMin: 0, fibMax: 0 })
+  }
+  return [...m.values()]
 }
 
-export function indent(s: string, n = 2): string {
-  const pad = " ".repeat(n)
-  return s.split("\n").map(l => (l ? pad + l : l)).join("\n")
+/** Swing lookback used for lastSH/lastSL (SL swing mode + any structure rule) — must equal backtest.ts */
+export function swingN(spec: StrategySpec): number {
+  return Math.max(1, ...[...spec.entry.long, ...spec.entry.short].map(r => ("swing" in r ? r.swing : 3)), spec.risk.sl.mode === "swing" ? spec.risk.sl.swing : 1)
 }
 
-export function commentBlock(lines: string[], style: "//" | "#" | "/*" = "//"): string {
-  if (style === "/*") return `/*\n${lines.map(l => ` * ${l}`).join("\n")}\n */`
-  const p = style === "#" ? "# " : "// "
-  return lines.map(l => p + l).join("\n")
+export type Emit = {
+  num: (n: number) => string
+  v: (ref: string, k: number) => string
+  cmp: (op: string, a: string, b: string) => string
+  cross: (dir: "above" | "below", a1: string, a0: string, b1: string, b0: string) => string
+  feat: (key: string, side: "long" | "short") => string
+  and: (parts: string[]) => string
 }
 
-export function ruleDesc(r: Rule): string {
-  if (r.kind === "cmp") return `${r.a} ${r.op} ${r.b}`
-  if (r.kind === "cross") return `${r.a} crosses ${r.dir} ${r.b}`
-  if (r.kind === "bos_pullback") return `BOS + fib pullback [${r.fibMin}-${r.fibMax}] swing=${r.swing}`
-  if (r.kind === "sweep") return `liquidity sweep swing=${r.swing}`
-  return "rule"
+export function ruleExpr(spec: StrategySpec, side: "long" | "short", e: Emit): string {
+  const rules = side === "long" ? spec.entry.long : spec.entry.short
+  if (!rules.length) return e.and([])
+  const op = (o: string | number, k: number) => typeof o === "number" ? e.num(o) : e.v(o, k)
+  return e.and(rules.map(r => {
+    if (r.kind === "cmp") return e.cmp(r.op, op(r.a, 0), op(r.b, 0))
+    if (r.kind === "cross") return e.cross(r.dir, op(r.a, 0), op(r.a, 1), op(r.b, 0), op(r.b, 1))
+    return e.feat(featKey(r), side)
+  }))
 }
 
-export function header(spec: StrategySpec, lang: Lang): string[] {
-  return [
-    `BotForge generated strategy: ${spec.name}`,
-    spec.summary || "(no summary)",
-    `Symbol ${spec.symbol} · TF ${spec.timeframe} · risk ${spec.risk.riskPct}% · RR ${spec.risk.rr}`,
-    `Language: ${LANG_META[lang].label}`,
-    "Do not edit by hand — regenerate from BotForge.",
-  ]
+export type IndCall = { id: string; type: string; outs: string[]; p: Record<string, number> }
+export function indCalls(spec: StrategySpec): IndCall[] {
+  return spec.indicators.map(i => ({
+    id: i.id, type: i.type, outs: OUTPUTS[i.type].map(o => `${i.id}.${o}`),
+    p: { period: i.period ?? (i.type === "rsi" || i.type === "atr" ? 14 : 20), fast: i.fast ?? 12, slow: i.slow ?? 26, signal: i.signal ?? 9, deviation: i.deviation ?? 2, k: i.k ?? 14, d: i.d ?? 3, smooth: i.smooth ?? 3 },
+  }))
 }
+
+export const header = (spec: StrategySpec, lang: string, c = "//") => [
+  `${c} ${spec.name} — generated by BotForge (${lang})`,
+  `${c} ${spec.summary || "Rule-based strategy compiled from a plain-English description."}`,
+  `${c} Timeframe: ${spec.timeframe} | Direction: ${spec.direction} | Risk: ${spec.risk.riskPercent}% | RR: ${spec.risk.rr}`,
+  `${c} Signals are evaluated on the LAST CLOSED bar; orders are meant to be sent at the next bar open.`,
+  `${c} Not financial advice. Backtest and forward-test on a demo account before risking capital.`,
+].join("\n")
+
+export const num = (n: number) => Number.isInteger(n) ? n.toFixed(1) : String(n)
